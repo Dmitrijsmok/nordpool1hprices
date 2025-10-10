@@ -14,6 +14,8 @@ A thin red vertical line marks the current hour in real time.
 
 Grid lines and labels for easy visual interpretation.
 
+
+
 🕒 Price List
 
 Displays hourly electricity prices in a clean two-column layout (Today & Tomorrow).
@@ -36,6 +38,8 @@ Automatically hides past hours.
 
 Highlights the current hour in red.
 
+
+
 🔔 Notifications
 
 Users can tap the bell icon to schedule a reminder for upcoming low-price hours.
@@ -44,6 +48,8 @@ Notifications trigger 10 minutes before the selected time.
 
 Works even if the app is in the background.
 
+
+
 🪶 Interface
 
 Built with Jetpack Compose (Material 3) for a modern, responsive UI.
@@ -51,6 +57,8 @@ Built with Jetpack Compose (Material 3) for a modern, responsive UI.
 Consistent green theme inspired by energy efficiency.
 
 Smooth padding and typography for visual clarity.
+
+
 
 🧩 Tech Stack
 Component	Technology
