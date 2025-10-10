@@ -21,9 +21,18 @@ import java.util.*
 
 @Composable
 fun PriceList(prices: List<PriceEntry>) {
-    val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-    val dayKeyFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-    val hourFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+    val latviaTZ = TimeZone.getTimeZone("Europe/Riga")
+
+    val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).apply {
+        timeZone = latviaTZ
+    }
+    val dayKeyFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).apply {
+        timeZone = latviaTZ
+    }
+    val hourFormat = SimpleDateFormat("HH:mm", Locale.getDefault()).apply {
+        timeZone = latviaTZ
+    }
+
     val now = Calendar.getInstance()
     val nowDate = now.time
 
@@ -75,8 +84,13 @@ fun PriceList(prices: List<PriceEntry>) {
                     // Filter out past hours for "Today"
                     val validEntries = entriesForDay.filter { entry ->
                         val start = runCatching { sdf.parse(entry.start) }.getOrNull()
-                        start != null && !start.before(nowDate)
+                        val end = runCatching { sdf.parse(entry.end) }.getOrNull()
+                        if (start != null && end != null) {
+                            // ✅ Keep the current ongoing hour visible
+                            !end.before(nowDate)
+                        } else false
                     }
+
 
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                         items(validEntries) { entry ->
@@ -105,11 +119,11 @@ fun PriceList(prices: List<PriceEntry>) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 4.dp, vertical = 0.dp)
+                                        .padding(horizontal = 0.dp, vertical = 0.dp)
                                         .then(
                                             if (isNow) Modifier.border(
-                                                BorderStroke(2.dp, Color.Red)
-                                            ).padding(4.dp) else Modifier
+                                                BorderStroke(1.dp, Color.Red)
+                                            ).padding(6.dp) else Modifier
                                         ),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -117,7 +131,7 @@ fun PriceList(prices: List<PriceEntry>) {
                                     Text(
                                         text = timeRange,
                                         modifier = Modifier.weight(1f),
-                                        fontSize = if (isNow) 18.sp else 14.sp
+                                        fontSize = if (isNow) 13.sp else 14.sp
                                     )
 
                                     // Bell (small fixed size)
@@ -148,13 +162,13 @@ fun PriceList(prices: List<PriceEntry>) {
                                             text = "$intPart.${fracPart.take(2)}",
                                             color = getColorForPrice(entry.price),
                                             fontWeight = if (entry.price < 0.15) FontWeight.Bold else FontWeight.Normal,
-                                            fontSize = if (isNow) 18.sp else 15.sp
+                                            fontSize = if (isNow) 14.sp else 15.sp
                                         )
                                         Text(
                                             text = fracPart.drop(2),
                                             color = getColorForPrice(entry.price),
                                             fontWeight = if (isNow) FontWeight.Bold else FontWeight.Light,
-                                            fontSize = if (isNow) 12.sp else 10.sp
+                                            fontSize = if (isNow) 9.sp else 10.sp
                                         )
                                     }
                                 }
