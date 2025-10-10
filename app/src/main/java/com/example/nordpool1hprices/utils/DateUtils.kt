@@ -2,7 +2,6 @@ package com.example.nordpool1hprices.utils
 
 import java.text.SimpleDateFormat
 import java.util.*
-import java.util.concurrent.TimeUnit
 
 object DateUtils {
     private const val API_DATE_FORMAT = "yyyy-MM-dd"

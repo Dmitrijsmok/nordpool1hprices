@@ -12,7 +12,7 @@ android {
         minSdk = 24
         targetSdk = 34
         versionCode = 1
-        versionName = "1.4"
+        versionName = "1.5"
     }
 
     compileOptions {
@@ -46,4 +46,6 @@ dependencies {
     implementation("com.github.doyaaaaaken:kotlin-csv-jvm:1.9.3")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
+    implementation("androidx.browser:browser:1.8.0")
+
 }

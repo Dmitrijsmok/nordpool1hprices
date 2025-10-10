@@ -33,7 +33,7 @@ fun PriceList(prices: List<PriceEntry>) {
         timeZone = latviaTZ
     }
 
-    val now = Calendar.getInstance()
+    val now = Calendar.getInstance(latviaTZ)
     val nowDate = now.time
 
     // Group prices by day
@@ -44,138 +44,137 @@ fun PriceList(prices: List<PriceEntry>) {
         }.getOrDefault("")
     }
 
-    val today = Calendar.getInstance()
-    val tomorrow = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1) }
-    val allowedDates = listOf(
+    val today = Calendar.getInstance(latviaTZ)
+    val tomorrow = Calendar.getInstance(latviaTZ).apply { add(Calendar.DAY_OF_YEAR, 1) }
+
+    // ✅ Enforce order manually
+    val orderedDays = listOf(
         dayKeyFormat.format(today.time),
         dayKeyFormat.format(tomorrow.time)
     )
 
-    // Wider space between Today and Tomorrow columns
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(30.dp)
     ) {
-        grouped
-            .filterKeys { it in allowedDates }
-            .forEach { (dayKey, entriesForDay) ->
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 8.dp)
-                ) {
-                    val headerText = when (dayKey) {
-                        dayKeyFormat.format(today.time) -> "Today"
-                        dayKeyFormat.format(tomorrow.time) -> "Tomorrow"
-                        else -> ""
-                    }
+        orderedDays.forEach { dayKey ->
+            val entriesForDay = grouped[dayKey] ?: return@forEach
 
-                    if (headerText.isNotEmpty()) {
-                        Text(
-                            text = headerText,
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 8.dp)
+            ) {
+                val headerText = when (dayKey) {
+                    dayKeyFormat.format(today.time) -> "Today"
+                    dayKeyFormat.format(tomorrow.time) -> "Tomorrow"
+                    else -> ""
+                }
 
-                    // Filter out past hours for "Today"
-                    val validEntries = entriesForDay.filter { entry ->
+                if (headerText.isNotEmpty()) {
+                    Text(
+                        text = headerText,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                // Filter: keep current and upcoming hours
+                val validEntries = entriesForDay
+                    .filter { entry ->
                         val start = runCatching { sdf.parse(entry.start) }.getOrNull()
                         val end = runCatching { sdf.parse(entry.end) }.getOrNull()
-                        if (start != null && end != null) {
-                            // ✅ Keep the current ongoing hour visible
-                            !end.before(nowDate)
-                        } else false
+                        start != null && end != null && !end.before(nowDate)
                     }
+                    .sortedBy { sdf.parse(it.start) } // ✅ Ascending by start time
 
 
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                        items(validEntries) { entry ->
-                            var notify by remember(entry) { mutableStateOf(entry.notify) }
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                    items(validEntries) { entry ->
+                        var notify by remember(entry) { mutableStateOf(entry.notify) }
 
-                            val startDate = runCatching { sdf.parse(entry.start) }.getOrNull()
-                            val endDate = runCatching { sdf.parse(entry.end) }.getOrNull()
+                        val startDate = runCatching { sdf.parse(entry.start) }.getOrNull()
+                        val endDate = runCatching { sdf.parse(entry.end) }.getOrNull()
 
-                            if (startDate != null && endDate != null) {
-                                val calStart = Calendar.getInstance().apply { time = startDate }
+                        if (startDate != null && endDate != null) {
+                            val calStart = Calendar.getInstance(latviaTZ).apply { time = startDate }
 
-                                val isNow =
-                                    calStart.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
-                                            calStart.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR) &&
-                                            calStart.get(Calendar.HOUR_OF_DAY) == now.get(Calendar.HOUR_OF_DAY)
+                            val isNow =
+                                calStart.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
+                                        calStart.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR) &&
+                                        calStart.get(Calendar.HOUR_OF_DAY) == now.get(Calendar.HOUR_OF_DAY)
 
-                                val timeRange =
-                                    "${hourFormat.format(startDate)} – ${hourFormat.format(endDate)}"
+                            val timeRange =
+                                "${hourFormat.format(startDate)} – ${hourFormat.format(endDate)}"
 
-                                val priceStr = String.format("%.3f", entry.price)
-                                val parts = priceStr.split(".")
-                                val intPart = parts.getOrElse(0) { "0" }
-                                val fracPart = parts.getOrElse(1) { "000" }
+                            val priceStr = String.format("%.3f", entry.price)
+                            val parts = priceStr.split(".")
+                            val intPart = parts.getOrElse(0) { "0" }
+                            val fracPart = parts.getOrElse(1) { "000" }
 
-                                // ✅ Flexible layout: Time | Bell | Price
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 0.dp, vertical = 0.dp)
-                                        .then(
-                                            if (isNow) Modifier.border(
-                                                BorderStroke(1.dp, Color.Red)
-                                            ).padding(6.dp) else Modifier
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 0.dp, vertical = 0.dp)
+                                    .then(
+                                        if (isNow) Modifier.border(
+                                            BorderStroke(1.dp, Color.Red)
+                                        ).padding(6.dp) else Modifier
+                                    ),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // 🕒 Time
+                                Text(
+                                    text = timeRange,
+                                    modifier = Modifier.weight(1f),
+                                    fontSize = if (isNow) 13.sp else 14.sp
+                                )
+
+                                // 🔔 Bell
+                                IconButton(
+                                    onClick = {
+                                        notify = !notify
+                                        entry.notify = notify
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        painter = painterResource(
+                                            id = if (notify) R.drawable.ic_bell_filled
+                                            else R.drawable.ic_bell_outline
                                         ),
+                                        contentDescription = "Notification",
+                                        tint = if (notify) Color(0xFFFFA000) else Color.Gray,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+
+                                // 💰 Price
+                                Row(
+                                    horizontalArrangement = Arrangement.End,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // Time (takes most space)
                                     Text(
-                                        text = timeRange,
-                                        modifier = Modifier.weight(1f),
-                                        fontSize = if (isNow) 13.sp else 14.sp
+                                        text = "$intPart.${fracPart.take(2)}",
+                                        color = getColorForPrice(entry.price),
+                                        fontWeight = if (entry.price < 0.15) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = if (isNow) 14.sp else 15.sp
                                     )
-
-                                    // Bell (small fixed size)
-                                    IconButton(
-                                        onClick = {
-                                            notify = !notify
-                                            entry.notify = notify
-                                        },
-                                        modifier = Modifier.size(36.dp)
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(
-                                                id = if (notify) R.drawable.ic_bell_filled
-                                                else R.drawable.ic_bell_outline
-                                            ),
-                                            contentDescription = "Notification",
-                                            tint = if (notify) Color(0xFFFFA000) else Color.Gray,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-
-                                    // Price (right aligned)
-                                    Row(
-                                        horizontalArrangement = Arrangement.End,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "$intPart.${fracPart.take(2)}",
-                                            color = getColorForPrice(entry.price),
-                                            fontWeight = if (entry.price < 0.15) FontWeight.Bold else FontWeight.Normal,
-                                            fontSize = if (isNow) 14.sp else 15.sp
-                                        )
-                                        Text(
-                                            text = fracPart.drop(2),
-                                            color = getColorForPrice(entry.price),
-                                            fontWeight = if (isNow) FontWeight.Bold else FontWeight.Light,
-                                            fontSize = if (isNow) 9.sp else 10.sp
-                                        )
-                                    }
+                                    Text(
+                                        text = fracPart.drop(2),
+                                        color = getColorForPrice(entry.price),
+                                        fontWeight = if (isNow) FontWeight.Bold else FontWeight.Light,
+                                        fontSize = if (isNow) 9.sp else 10.sp
+                                    )
                                 }
                             }
                         }
                     }
                 }
             }
+        }
     }
 }
