@@ -2,13 +2,10 @@ package com.example.nordpool1hprices.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,11 +48,14 @@ fun PriceList(prices: List<PriceEntry>) {
                     val tomorrow = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1) }
 
                     when {
-                        calDay.get(Calendar.YEAR) == today.get(Calendar.YEAR)
-                                && calDay.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR) -> "Today"
-                        calDay.get(Calendar.YEAR) == tomorrow.get(Calendar.YEAR)
-                                && calDay.get(Calendar.DAY_OF_YEAR) == tomorrow.get(Calendar.DAY_OF_YEAR) -> "Tomorrow"
-                        else -> SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(calDay.time)
+                        calDay.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
+                                calDay.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR) ->
+                            "Today"
+                        calDay.get(Calendar.YEAR) == tomorrow.get(Calendar.YEAR) &&
+                                calDay.get(Calendar.DAY_OF_YEAR) == tomorrow.get(Calendar.DAY_OF_YEAR) ->
+                            "Tomorrow"
+                        else ->
+                            SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(calDay.time)
                     }
                 }.getOrDefault(dayKey)
 
@@ -74,18 +74,16 @@ fun PriceList(prices: List<PriceEntry>) {
                         if (startDate != null && endDate != null) {
                             val calStart = Calendar.getInstance().apply { time = startDate }
                             val calNow = now
-
-                            val isNow = calStart.get(Calendar.YEAR) == calNow.get(Calendar.YEAR)
-                                    && calStart.get(Calendar.DAY_OF_YEAR) == calNow.get(Calendar.DAY_OF_YEAR)
-                                    && calStart.get(Calendar.HOUR_OF_DAY) == calNow.get(Calendar.HOUR_OF_DAY)
+                            val isNow = calStart.get(Calendar.YEAR) == calNow.get(Calendar.YEAR) &&
+                                    calStart.get(Calendar.DAY_OF_YEAR) == calNow.get(Calendar.DAY_OF_YEAR) &&
+                                    calStart.get(Calendar.HOUR_OF_DAY) == calNow.get(Calendar.HOUR_OF_DAY)
 
                             val timeRange = "${hourFormat.format(startDate)} – ${hourFormat.format(endDate)}"
+
                             val priceStr = String.format("%.3f", entry.price)
                             val parts = priceStr.split(".")
                             val intPart = parts.getOrElse(0) { "0" }
                             val fracPart = parts.getOrElse(1) { "000" }
-
-                            var notify by remember { mutableStateOf(entry.notify) }
 
                             Row(
                                 modifier = Modifier
@@ -94,15 +92,27 @@ fun PriceList(prices: List<PriceEntry>) {
                                     .then(if (isNow) Modifier.border(BorderStroke(2.dp, Color.Red)).padding(4.dp) else Modifier),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                // 🔔 Bell icon on the LEFT
+                                IconButton(onClick = { entry.notify = !entry.notify }) {
+                                    Icon(
+                                        painter = painterResource(
+                                            id = if (entry.notify) R.drawable.ic_bell_filled else R.drawable.ic_bell_outline
+                                        ),
+                                        contentDescription = "Notification",
+                                        tint = if (entry.notify) Color(0xFFFFA000) else Color.Gray,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+
+                                // 🕒 Time range
                                 Text(
                                     text = timeRange,
                                     modifier = Modifier.weight(1f),
                                     fontSize = if (isNow) 18.sp else 14.sp
                                 )
 
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
+                                // 💰 Price (aligned right)
+                                Row {
                                     Text(
                                         text = "$intPart.${fracPart.take(2)}",
                                         color = getColorForPrice(entry.price),
@@ -114,26 +124,6 @@ fun PriceList(prices: List<PriceEntry>) {
                                         color = getColorForPrice(entry.price),
                                         fontWeight = if (isNow) FontWeight.Bold else FontWeight.Light,
                                         fontSize = if (isNow) 12.sp else 10.sp
-                                    )
-
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    Icon(
-                                        painter = painterResource(
-                                            id = if (notify)
-                                                R.drawable.ic_bell_filled
-                                            else
-                                                R.drawable.ic_bell_outline
-                                        ),
-                                        contentDescription = "Notify",
-                                        tint = Color.Unspecified,
-                                        modifier = Modifier
-                                            .size(20.dp)
-                                            .clickable {
-                                                notify = !notify
-                                                entry.notify = notify
-                                                // TODO: trigger/clear notification schedule
-                                            }
                                     )
                                 }
                             }
