@@ -1,0 +1,9 @@
+<resources>
+    <!-- Material3-compatible app theme -->
+    <style name="Theme.Nordpool1hPrices" parent="Theme.Material3.DayNight">
+        <item name="colorPrimary">@color/purple_500</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorSecondary">@color/teal_200</item>
+        <item name="colorOnSecondary">@color/black</item>
+    </style>
+</resources>
