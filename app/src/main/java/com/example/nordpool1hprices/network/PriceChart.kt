@@ -28,7 +28,8 @@ fun PriceChart(prices: List<PriceEntry>) {
     val minPrice = prices.minOf { it.price }
 
     // Get current hour for vertical line
-    val now = Calendar.getInstance()
+    val latviaTZ = TimeZone.getTimeZone("Europe/Riga")
+    val now = Calendar.getInstance(latviaTZ)
     val currentHour = now.get(Calendar.HOUR_OF_DAY)
 
     Column(
@@ -106,10 +107,21 @@ fun PriceChart(prices: List<PriceEntry>) {
                 }
             }
 
-            // ✅ Draw the red line for the current hour
-            val nowX = currentHour * hourWidth
+            // ✅ Draw line for the current hour
+            val latviaTZ = TimeZone.getTimeZone("Europe/Riga")
+            val now = Calendar.getInstance(latviaTZ)
+
+            val currentHour = now.get(Calendar.HOUR_OF_DAY)
+            val currentMinute = now.get(Calendar.MINUTE)
+
+// Calculate fractional hour (e.g., 21.9 for 21:54)
+            val currentHourFraction = currentHour + (currentMinute / 60f)
+
+// Convert that into chart X coordinate
+            val nowX = currentHourFraction * hourWidth
+
             drawLine(
-                color = Color(0xFFFF0000),
+                color = Color(0xFF363636),
                 start = Offset(nowX, 0f),
                 end = Offset(nowX, h),
                 strokeWidth = 3f
