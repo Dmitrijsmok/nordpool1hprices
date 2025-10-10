@@ -101,6 +101,27 @@ fun PriceChart(prices: List<PriceEntry>) {
                     )
                 }
             }
+            // 🕒 Current time vertical line
+            val currentHour = LocalTime.now().hour
+            val xNow = currentHour * (size.width / 24f)
+
+            drawLine(
+                color = Color(0xFF363636),
+                start = Offset(xNow, 0f),
+                end = Offset(xNow, size.height),
+                strokeWidth = 2f
+            )
+
+// Optional: small circle marker on current price
+            val currentEntry = prices.getOrNull(currentHour)
+            if (currentEntry != null) {
+                val yNow = priceToY(currentEntry.price)
+                drawCircle(
+                    color = Color.Red,
+                    radius = 6f,
+                    center = Offset(xNow, yNow)
+                )
+            }
         }
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
