@@ -26,6 +26,7 @@ fun PriceList(prices: List<PriceEntry>) {
     val hourFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
     val now = Calendar.getInstance()
 
+    // Group prices by day
     val grouped: Map<String, List<PriceEntry>> = prices.groupBy { entry ->
         runCatching {
             val dt = sdf.parse(entry.start)
@@ -33,104 +34,111 @@ fun PriceList(prices: List<PriceEntry>) {
         }.getOrDefault("")
     }
 
+    // Define Today and Tomorrow boundaries
+    val today = Calendar.getInstance()
+    val tomorrow = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1) }
+    val allowedDates = listOf(
+        dayKeyFormat.format(today.time),
+        dayKeyFormat.format(tomorrow.time)
+    )
+
     Row(modifier = Modifier.fillMaxWidth()) {
-        grouped.forEach { (dayKey, entriesForDay) ->
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(8.dp)
-            ) {
-                val headerText = runCatching {
-                    val calDay = Calendar.getInstance().apply {
-                        time = dayKeyFormat.parse(dayKey) ?: Date()
+        grouped
+            .filterKeys { it in allowedDates } // ✅ Show only today & tomorrow
+            .forEach { (dayKey, entriesForDay) ->
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(8.dp)
+                ) {
+                    // 🗓️ Day header
+                    val headerText = when (dayKey) {
+                        dayKeyFormat.format(today.time) -> "Today"
+                        dayKeyFormat.format(tomorrow.time) -> "Tomorrow"
+                        else -> ""
                     }
-                    val today = Calendar.getInstance()
-                    val tomorrow = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1) }
 
-                    when {
-                        calDay.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
-                                calDay.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR) ->
-                            "Today"
-                        calDay.get(Calendar.YEAR) == tomorrow.get(Calendar.YEAR) &&
-                                calDay.get(Calendar.DAY_OF_YEAR) == tomorrow.get(Calendar.DAY_OF_YEAR) ->
-                            "Tomorrow"
-                        else ->
-                            SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(calDay.time)
+                    if (headerText.isNotEmpty()) {
+                        Text(
+                            text = headerText,
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
-                }.getOrDefault(dayKey)
 
-                Text(
-                    text = headerText,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+                    // 📋 List of hourly prices
+                    LazyColumn {
+                        items(entriesForDay) { entry ->
+                            val startDate = runCatching { sdf.parse(entry.start) }.getOrNull()
+                            val endDate = runCatching { sdf.parse(entry.end) }.getOrNull()
 
-                LazyColumn {
-                    items(entriesForDay) { entry ->
-                        val startDate = runCatching { sdf.parse(entry.start) }.getOrNull()
-                        val endDate = runCatching { sdf.parse(entry.end) }.getOrNull()
+                            if (startDate != null && endDate != null) {
+                                val calStart = Calendar.getInstance().apply { time = startDate }
 
-                        if (startDate != null && endDate != null) {
-                            val calStart = Calendar.getInstance().apply { time = startDate }
-                            val calNow = now
-                            val isNow = calStart.get(Calendar.YEAR) == calNow.get(Calendar.YEAR) &&
-                                    calStart.get(Calendar.DAY_OF_YEAR) == calNow.get(Calendar.DAY_OF_YEAR) &&
-                                    calStart.get(Calendar.HOUR_OF_DAY) == calNow.get(Calendar.HOUR_OF_DAY)
+                                val isNow = calStart.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
+                                        calStart.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR) &&
+                                        calStart.get(Calendar.HOUR_OF_DAY) == now.get(Calendar.HOUR_OF_DAY)
 
-                            val timeRange = "${hourFormat.format(startDate)} – ${hourFormat.format(endDate)}"
+                                val timeRange =
+                                    "${hourFormat.format(startDate)} – ${hourFormat.format(endDate)}"
 
-                            val priceStr = String.format("%.3f", entry.price)
-                            val parts = priceStr.split(".")
-                            val intPart = parts.getOrElse(0) { "0" }
-                            val fracPart = parts.getOrElse(1) { "000" }
+                                val priceStr = String.format("%.3f", entry.price)
+                                val parts = priceStr.split(".")
+                                val intPart = parts.getOrElse(0) { "0" }
+                                val fracPart = parts.getOrElse(1) { "000" }
 
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp)
-                                    .then(if (isNow) Modifier.border(BorderStroke(2.dp, Color.Red)).padding(4.dp) else Modifier),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // 🔔 Bell icon on the LEFT
-                                IconButton(onClick = { entry.notify = !entry.notify }) {
-                                    Icon(
-                                        painter = painterResource(
-                                            id = if (entry.notify) R.drawable.ic_bell_filled else R.drawable.ic_bell_outline
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                        .then(
+                                            if (isNow) Modifier.border(
+                                                BorderStroke(2.dp, Color.Red)
+                                            ).padding(4.dp) else Modifier
                                         ),
-                                        contentDescription = "Notification",
-                                        tint = if (entry.notify) Color(0xFFFFA000) else Color.Gray,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // 🔔 Bell on left
+                                    IconButton(onClick = { entry.notify = !entry.notify }) {
+                                        Icon(
+                                            painter = painterResource(
+                                                id = if (entry.notify) R.drawable.ic_bell_filled
+                                                else R.drawable.ic_bell_outline
+                                            ),
+                                            contentDescription = "Notification",
+                                            tint = if (entry.notify) Color(0xFFFFA000) else Color.Gray,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
 
-                                // 🕒 Time range
-                                Text(
-                                    text = timeRange,
-                                    modifier = Modifier.weight(1f),
-                                    fontSize = if (isNow) 18.sp else 14.sp
-                                )
-
-                                // 💰 Price (aligned right)
-                                Row {
+                                    // 🕒 Time
                                     Text(
-                                        text = "$intPart.${fracPart.take(2)}",
-                                        color = getColorForPrice(entry.price),
-                                        fontWeight = if (entry.price < 0.15) FontWeight.Bold else FontWeight.Normal,
+                                        text = timeRange,
+                                        modifier = Modifier.weight(1f),
                                         fontSize = if (isNow) 18.sp else 14.sp
                                     )
-                                    Text(
-                                        text = fracPart.drop(2),
-                                        color = getColorForPrice(entry.price),
-                                        fontWeight = if (isNow) FontWeight.Bold else FontWeight.Light,
-                                        fontSize = if (isNow) 12.sp else 10.sp
-                                    )
+
+                                    // 💰 Price
+                                    Row {
+                                        Text(
+                                            text = "$intPart.${fracPart.take(2)}",
+                                            color = getColorForPrice(entry.price),
+                                            fontWeight = if (entry.price < 0.15) FontWeight.Bold else FontWeight.Normal,
+                                            fontSize = if (isNow) 18.sp else 14.sp
+                                        )
+                                        Text(
+                                            text = fracPart.drop(2),
+                                            color = getColorForPrice(entry.price),
+                                            fontWeight = if (isNow) FontWeight.Bold else FontWeight.Light,
+                                            fontSize = if (isNow) 12.sp else 10.sp
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
     }
 }
