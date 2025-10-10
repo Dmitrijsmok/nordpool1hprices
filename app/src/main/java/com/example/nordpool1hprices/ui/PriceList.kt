@@ -44,14 +44,13 @@ fun PriceList(prices: List<PriceEntry>) {
 
     Row(modifier = Modifier.fillMaxWidth()) {
         grouped
-            .filterKeys { it in allowedDates } // ✅ Show only today & tomorrow
+            .filterKeys { it in allowedDates } // ✅ Only Today and Tomorrow
             .forEach { (dayKey, entriesForDay) ->
                 Column(
                     modifier = Modifier
                         .weight(1f)
                         .padding(8.dp)
                 ) {
-                    // 🗓️ Day header
                     val headerText = when (dayKey) {
                         dayKeyFormat.format(today.time) -> "Today"
                         dayKeyFormat.format(tomorrow.time) -> "Tomorrow"
@@ -67,18 +66,21 @@ fun PriceList(prices: List<PriceEntry>) {
                         Spacer(modifier = Modifier.height(8.dp))
                     }
 
-                    // 📋 List of hourly prices
                     LazyColumn {
                         items(entriesForDay) { entry ->
+                            // ⚡ Use remember to track notification toggle per entry
+                            var notify by remember(entry) { mutableStateOf(entry.notify) }
+
                             val startDate = runCatching { sdf.parse(entry.start) }.getOrNull()
                             val endDate = runCatching { sdf.parse(entry.end) }.getOrNull()
 
                             if (startDate != null && endDate != null) {
                                 val calStart = Calendar.getInstance().apply { time = startDate }
 
-                                val isNow = calStart.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
-                                        calStart.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR) &&
-                                        calStart.get(Calendar.HOUR_OF_DAY) == now.get(Calendar.HOUR_OF_DAY)
+                                val isNow =
+                                    calStart.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
+                                            calStart.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR) &&
+                                            calStart.get(Calendar.HOUR_OF_DAY) == now.get(Calendar.HOUR_OF_DAY)
 
                                 val timeRange =
                                     "${hourFormat.format(startDate)} – ${hourFormat.format(endDate)}"
@@ -99,15 +101,18 @@ fun PriceList(prices: List<PriceEntry>) {
                                         ),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // 🔔 Bell on left
-                                    IconButton(onClick = { entry.notify = !entry.notify }) {
+                                    // 🔔 Bell icon toggle
+                                    IconButton(onClick = {
+                                        notify = !notify
+                                        entry.notify = notify // update data model too
+                                    }) {
                                         Icon(
                                             painter = painterResource(
-                                                id = if (entry.notify) R.drawable.ic_bell_filled
+                                                id = if (notify) R.drawable.ic_bell_filled
                                                 else R.drawable.ic_bell_outline
                                             ),
                                             contentDescription = "Notification",
-                                            tint = if (entry.notify) Color(0xFFFFA000) else Color.Gray,
+                                            tint = if (notify) Color(0xFFFFA000) else Color.Gray,
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
