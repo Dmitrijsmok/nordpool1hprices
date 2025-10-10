@@ -25,16 +25,16 @@ fun PriceList(prices: List<PriceEntry>) {
     val dayKeyFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     val hourFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
     val now = Calendar.getInstance()
+    val nowDate = now.time
 
     // Group prices by day
-    val grouped: Map<String, List<PriceEntry>> = prices.groupBy { entry ->
+    val grouped = prices.groupBy { entry ->
         runCatching {
             val dt = sdf.parse(entry.start)
             if (dt != null) dayKeyFormat.format(dt) else ""
         }.getOrDefault("")
     }
 
-    // Define Today and Tomorrow boundaries
     val today = Calendar.getInstance()
     val tomorrow = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1) }
     val allowedDates = listOf(
@@ -42,14 +42,20 @@ fun PriceList(prices: List<PriceEntry>) {
         dayKeyFormat.format(tomorrow.time)
     )
 
-    Row(modifier = Modifier.fillMaxWidth()) {
+    // Wider space between Today and Tomorrow columns
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(30.dp)
+    ) {
         grouped
-            .filterKeys { it in allowedDates } // ✅ Only Today and Tomorrow
+            .filterKeys { it in allowedDates }
             .forEach { (dayKey, entriesForDay) ->
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(8.dp)
+                        .padding(horizontal = 8.dp)
                 ) {
                     val headerText = when (dayKey) {
                         dayKeyFormat.format(today.time) -> "Today"
@@ -66,9 +72,14 @@ fun PriceList(prices: List<PriceEntry>) {
                         Spacer(modifier = Modifier.height(8.dp))
                     }
 
-                    LazyColumn {
-                        items(entriesForDay) { entry ->
-                            // ⚡ Use remember to track notification toggle per entry
+                    // Filter out past hours for "Today"
+                    val validEntries = entriesForDay.filter { entry ->
+                        val start = runCatching { sdf.parse(entry.start) }.getOrNull()
+                        start != null && !start.before(nowDate)
+                    }
+
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                        items(validEntries) { entry ->
                             var notify by remember(entry) { mutableStateOf(entry.notify) }
 
                             val startDate = runCatching { sdf.parse(entry.start) }.getOrNull()
@@ -90,10 +101,11 @@ fun PriceList(prices: List<PriceEntry>) {
                                 val intPart = parts.getOrElse(0) { "0" }
                                 val fracPart = parts.getOrElse(1) { "000" }
 
+                                // ✅ Flexible layout: Time | Bell | Price
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 4.dp)
+                                        .padding(horizontal = 4.dp, vertical = 0.dp)
                                         .then(
                                             if (isNow) Modifier.border(
                                                 BorderStroke(2.dp, Color.Red)
@@ -101,11 +113,21 @@ fun PriceList(prices: List<PriceEntry>) {
                                         ),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // 🔔 Bell icon toggle
-                                    IconButton(onClick = {
-                                        notify = !notify
-                                        entry.notify = notify // update data model too
-                                    }) {
+                                    // Time (takes most space)
+                                    Text(
+                                        text = timeRange,
+                                        modifier = Modifier.weight(1f),
+                                        fontSize = if (isNow) 18.sp else 14.sp
+                                    )
+
+                                    // Bell (small fixed size)
+                                    IconButton(
+                                        onClick = {
+                                            notify = !notify
+                                            entry.notify = notify
+                                        },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
                                         Icon(
                                             painter = painterResource(
                                                 id = if (notify) R.drawable.ic_bell_filled
@@ -113,24 +135,20 @@ fun PriceList(prices: List<PriceEntry>) {
                                             ),
                                             contentDescription = "Notification",
                                             tint = if (notify) Color(0xFFFFA000) else Color.Gray,
-                                            modifier = Modifier.size(20.dp)
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
 
-                                    // 🕒 Time
-                                    Text(
-                                        text = timeRange,
-                                        modifier = Modifier.weight(1f),
-                                        fontSize = if (isNow) 18.sp else 14.sp
-                                    )
-
-                                    // 💰 Price
-                                    Row {
+                                    // Price (right aligned)
+                                    Row(
+                                        horizontalArrangement = Arrangement.End,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
                                         Text(
                                             text = "$intPart.${fracPart.take(2)}",
                                             color = getColorForPrice(entry.price),
                                             fontWeight = if (entry.price < 0.15) FontWeight.Bold else FontWeight.Normal,
-                                            fontSize = if (isNow) 18.sp else 14.sp
+                                            fontSize = if (isNow) 18.sp else 15.sp
                                         )
                                         Text(
                                             text = fracPart.drop(2),
