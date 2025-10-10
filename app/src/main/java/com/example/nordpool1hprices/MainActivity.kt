@@ -58,7 +58,19 @@ fun NordpoolApp() {
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Nord Pool – 1h Prices") })
+            TopAppBar(
+                title = {
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "Nord Pool 1 hour prices",
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    }
+                }
+            )
         }
     ) { padding ->
         if (loading) {
