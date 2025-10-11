@@ -14,6 +14,9 @@ android {
         versionCode = 1
         versionName = "1.5"
     }
+    buildFeatures {
+        buildConfig = true   // ✅ <— this line is key
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

@@ -22,12 +22,11 @@ object PriceRepository {
 
         val rows = csvReader().readAllWithHeader(csvData.byteInputStream())
 
-        return@withContext rows.map { row: Map<String, String> ->
-            PriceEntry(
-                start = row["ts_start"] ?: "",
-                end = row["ts_end"] ?: "",
-                price = row["price"]?.toDoubleOrNull() ?: 0.0
-            )
-        }
+        return@withContext rows.mapNotNull { row: Map<String, String> ->
+            val start = row["ts_start"] ?: return@mapNotNull null
+            val end = row["ts_end"] ?: return@mapNotNull null
+            val price = row["price"]?.toDoubleOrNull() ?: return@mapNotNull null
+            PriceEntry(start = start, end = end, price = price)
+    }
     }
 }

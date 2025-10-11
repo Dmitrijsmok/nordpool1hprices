@@ -19,6 +19,7 @@ import com.example.nordpool1hprices.model.PriceEntry
 import java.text.SimpleDateFormat
 import java.util.*
 
+
 @Composable
 fun PriceList(prices: List<PriceEntry>) {
     val latviaTZ = TimeZone.getTimeZone("Europe/Riga")
