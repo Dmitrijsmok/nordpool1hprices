@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.sp
 import com.example.nordpool1hprices.model.PriceEntry
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.ui.platform.LocalConfiguration
+
 
 @Composable
 fun PriceChart(prices: List<PriceEntry>) {
@@ -39,7 +41,7 @@ fun PriceChart(prices: List<PriceEntry>) {
     val hourFormatter = SimpleDateFormat("HH", Locale.getDefault())
 
     val totalHours = prices.size.coerceAtLeast(1)
-    val hourWidth = 60f // Adjust zoom
+    val hourWidth = 25f // chart width
     val chartWidth = totalHours * hourWidth
 
     val scrollState = rememberScrollState()
@@ -96,12 +98,21 @@ fun PriceChart(prices: List<PriceEntry>) {
             }
 
             // === Scrollable chart with X-axis labels ===
+            val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+            val chartWidthDp = chartWidth.dp
+
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .horizontalScroll(scrollState)
+                    .then(
+                        if (chartWidthDp > screenWidth)
+                            Modifier.horizontalScroll(scrollState)
+                        else
+                            Modifier // no scroll if data fits
+                    )
                     .background(Color.White)
-            ) {
+            )
+            {
                 // === Chart Canvas ===
                 Canvas(
                     modifier = Modifier
