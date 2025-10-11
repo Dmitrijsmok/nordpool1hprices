@@ -1,5 +1,12 @@
 package com.example.nordpool1hprices.ui
 
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.provider.Settings
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -10,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -18,7 +26,6 @@ import com.example.nordpool1hprices.R
 import com.example.nordpool1hprices.model.PriceEntry
 import java.text.SimpleDateFormat
 import java.util.*
-
 
 @Composable
 fun PriceList(prices: List<PriceEntry>) {
@@ -37,7 +44,6 @@ fun PriceList(prices: List<PriceEntry>) {
     val now = Calendar.getInstance(latviaTZ)
     val nowDate = now.time
 
-    // Group prices by day
     val grouped = prices.groupBy { entry ->
         runCatching {
             val dt = sdf.parse(entry.start)
@@ -48,7 +54,6 @@ fun PriceList(prices: List<PriceEntry>) {
     val today = Calendar.getInstance(latviaTZ)
     val tomorrow = Calendar.getInstance(latviaTZ).apply { add(Calendar.DAY_OF_YEAR, 1) }
 
-    // ✅ Enforce order manually
     val orderedDays = listOf(
         dayKeyFormat.format(today.time),
         dayKeyFormat.format(tomorrow.time)
@@ -83,15 +88,13 @@ fun PriceList(prices: List<PriceEntry>) {
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                // Filter: keep current and upcoming hours
                 val validEntries = entriesForDay
                     .filter { entry ->
                         val start = runCatching { sdf.parse(entry.start) }.getOrNull()
                         val end = runCatching { sdf.parse(entry.end) }.getOrNull()
                         start != null && end != null && !end.before(nowDate)
                     }
-                    .sortedBy { sdf.parse(it.start) } // ✅ Ascending by start time
-
+                    .sortedBy { sdf.parse(it.start) }
 
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                     items(validEntries) { entry ->
@@ -108,8 +111,7 @@ fun PriceList(prices: List<PriceEntry>) {
                                         calStart.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR) &&
                                         calStart.get(Calendar.HOUR_OF_DAY) == now.get(Calendar.HOUR_OF_DAY)
 
-                            val timeRange =
-                                "${hourFormat.format(startDate)} – ${hourFormat.format(endDate)}"
+                            val timeRange = "${hourFormat.format(startDate)} – ${hourFormat.format(endDate)}"
 
                             val priceStr = String.format("%.3f", entry.price)
                             val parts = priceStr.split(".")
@@ -134,18 +136,59 @@ fun PriceList(prices: List<PriceEntry>) {
                                     fontSize = if (isNow) 13.sp else 14.sp
                                 )
 
-                                // 🔔 Bell
+                                // 🔔 Bell button logic
+                                val context = LocalContext.current
+                                val activity = context as? Activity
+
                                 IconButton(
                                     onClick = {
                                         notify = !notify
                                         entry.notify = notify
+
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                            val hasPermission =
+                                                context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+                                            if (!hasPermission) {
+                                                try {
+                                                    val settingsIntent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                    }
+                                                    context.startActivity(settingsIntent)
+                                                } catch (e: Exception) {
+                                                    Toast.makeText(context, "Please allow notifications in settings.", Toast.LENGTH_SHORT).show()
+                                                }
+                                                return@IconButton
+                                            }
+                                        }
+
+                                        val triggerTimeMillis = (startDate.time - 10 * 60 * 1000)
+                                            .coerceAtLeast(System.currentTimeMillis() + 5_000)
+
+                                        val priceText = String.format("%.3f", entry.price)
+
+                                        if (notify) {
+                                            com.example.nordpool1hprices.notifications.NotificationScheduler.scheduleNotification(
+                                                context,
+                                                triggerTimeMillis,
+                                                timeRange,
+                                                priceText
+                                            )
+                                            Toast.makeText(context, "Notification set for $timeRange", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            com.example.nordpool1hprices.notifications.NotificationScheduler.cancelNotification(
+                                                context,
+                                                triggerTimeMillis
+                                            )
+                                            Toast.makeText(context, "Notification cancelled", Toast.LENGTH_SHORT).show()
+                                        }
                                     },
                                     modifier = Modifier.size(36.dp)
                                 ) {
                                     Icon(
                                         painter = painterResource(
-                                            id = if (notify) R.drawable.ic_bell_filled
-                                            else R.drawable.ic_bell_outline
+                                            id = if (notify) R.drawable.ic_bell_filled else R.drawable.ic_bell_outline
                                         ),
                                         contentDescription = "Notification",
                                         tint = if (notify) Color(0xFFFFA000) else Color.Gray,

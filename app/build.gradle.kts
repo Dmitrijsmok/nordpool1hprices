@@ -11,11 +11,11 @@ android {
         applicationId = "com.example.nordpool1hprices"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.5"
+        versionCode = 3
+        versionName = "1.7"
     }
     buildFeatures {
-        buildConfig = true   // ✅ <— this line is key
+        buildConfig = true
     }
 
     compileOptions {
