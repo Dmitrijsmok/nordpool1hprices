@@ -1,4 +1,5 @@
 import org.gradle.api.tasks.Copy
+import java.io.File
 
 plugins {
     id("com.android.application")
@@ -105,8 +106,51 @@ tasks.register<Copy>("publishReleaseApk") {
     }
 }
 
+tasks.register("publishAndPushUpdate") {
+    group = "publishing"
+    description = "Publishes signed APK, updates JSON, and pushes to GitLab."
+
+    dependsOn("publishReleaseApk")
+
+    doLast {
+        val versionName = android.defaultConfig.versionName ?: "unknown"
+        val updateDir = file("${project.rootDir}/../nordpool1hprices-updates")
+
+        // 1️⃣ Generate update.json dynamically
+        val updateJson = """
+            {
+              "latestVersion": "$versionName",
+              "changelog": "Updated via automated Gradle publish task.",
+              "apkUrl": "https://gitlab.com/<your-username>/nordpool1hprices-updates/-/raw/main/app-release-v$versionName.apk"
+            }
+        """.trimIndent()
+
+        File(updateDir, "update.json").writeText(updateJson)
+        println("📝 Created update.json for version $versionName")
+
+        // 2️⃣ Commit & push to GitLab
+        exec {
+            workingDir(updateDir)
+            commandLine("git", "add", ".")
+        }
+        exec {
+            workingDir(updateDir)
+            commandLine("git", "commit", "-m", "Release v$versionName")
+            isIgnoreExitValue = true // avoid failure if nothing to commit
+        }
+        exec {
+            workingDir(updateDir)
+            commandLine("git", "push", "origin", "main")
+        }
+
+        println("🚀 Update pushed to GitLab successfully.")
+    }
+}
+
 // Helper extension to access android block easily
 fun org.gradle.api.Project.androidAppExtension() =
     extensions.getByName("android") as com.android.build.gradle.internal.dsl.BaseAppModuleExtension
-
+//build app
 //    ./gradlew clean assembleRelease publishReleaseApk
+//commit and push automatically
+//    ./gradlew clean assembleRelease publishAndPushUpdate
