@@ -1,0 +1,9 @@
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Allows sharing of APKs stored in app cache or external files -->
+    <cache-path
+        name="apk_cache"
+        path="." />
+    <external-files-path
+        name="apk_external"
+        path="." />
+</paths>
