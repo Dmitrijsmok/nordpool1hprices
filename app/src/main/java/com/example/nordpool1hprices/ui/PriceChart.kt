@@ -1,6 +1,7 @@
 package com.example.nordpool1hprices.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -16,6 +17,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.nordpool1hprices.model.PriceEntry
 import java.text.SimpleDateFormat
 import java.util.*
@@ -24,6 +26,7 @@ import java.util.*
 fun PriceChart(prices: List<PriceEntry>) {
     if (prices.isEmpty()) return
 
+    // === Data setup ===
     val rawMaxPrice = prices.maxOf { it.price }
     val minPrice = prices.minOf { it.price }
     val maxPrice = if (rawMaxPrice > 0.8) 0.8 else rawMaxPrice
@@ -36,12 +39,12 @@ fun PriceChart(prices: List<PriceEntry>) {
     val hourFormatter = SimpleDateFormat("HH", Locale.getDefault())
 
     val totalHours = prices.size.coerceAtLeast(1)
-    val hourWidth = 60f // pixels per hour (controls chart density)
+    val hourWidth = 60f // Adjust zoom
     val chartWidth = totalHours * hourWidth
 
     val scrollState = rememberScrollState()
 
-    // Auto-scroll near current hour
+    // === Auto-scroll to current hour on start ===
     LaunchedEffect(prices) {
         val targetScroll = (currentHour * hourWidth - 100).toInt().coerceAtLeast(0)
         scrollState.scrollTo(targetScroll)
@@ -52,6 +55,7 @@ fun PriceChart(prices: List<PriceEntry>) {
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
+        // === Chart Title ===
         Text(
             text = "24h price trend",
             style = MaterialTheme.typography.titleMedium,
@@ -60,118 +64,142 @@ fun PriceChart(prices: List<PriceEntry>) {
                 .align(Alignment.CenterHorizontally)
         )
 
-        // ✅ Scrollable chart box
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(240.dp)
-                .horizontalScroll(scrollState)
+                .height(260.dp)
         ) {
-            Canvas(
+            // === Fixed Y-axis (price labels) ===
+            Box(
                 modifier = Modifier
-                    .width(chartWidth.dp) // dynamic width based on data
-                    .height(240.dp)
-                    .padding(bottom = 8.dp, top = 4.dp)
+                    .width(40.dp)
+                    .fillMaxHeight()
+                    .background(Color.White)
             ) {
-                val w = size.width
-                val h = size.height
-
-                val priceToY = { price: Double ->
-                    h - ((price - minPrice) / priceRange * h).toFloat()
-                }
-
-                // ✅ Horizontal grid lines (price levels)
-                for (i in 0..5) {
-                    val priceLabel = minPrice + i * (priceRange / 5)
-                    val y = priceToY(priceLabel)
-                    drawLine(
-                        color = Color.LightGray.copy(alpha = 0.4f),
-                        start = Offset(0f, y),
-                        end = Offset(w, y),
-                        strokeWidth = 1f,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
-                    )
-                    drawContext.canvas.nativeCanvas.drawText(
-                        String.format("%.2f", priceLabel),
-                        8f,
-                        y - 4f,
-                        android.graphics.Paint().apply {
-                            color = android.graphics.Color.DKGRAY
-                            textSize = 26f
-                            isAntiAlias = true
-                        }
-                    )
-                }
-
-                // ✅ Vertical grid lines + hour labels
-                val calendar = Calendar.getInstance(latviaTZ)
-                for (i in 0..totalHours) {
-                    val x = i * hourWidth
-                    drawLine(
-                        color = Color.LightGray.copy(alpha = 0.3f),
-                        start = Offset(x, 0f),
-                        end = Offset(x, h),
-                        strokeWidth = 1f
-                    )
-
-                    if (i < totalHours) {
-                        calendar.time = now.time
-                        calendar.add(Calendar.HOUR_OF_DAY, i)
-                        val hourLabel = hourFormatter.format(calendar.time)
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val h = size.height
+                    for (i in 0..5) {
+                        val priceLabel = minPrice + i * (priceRange / 5)
+                        val y = h - ((priceLabel - minPrice) / priceRange * h).toFloat()
                         drawContext.canvas.nativeCanvas.drawText(
-                            hourLabel,
-                            x + 4f,
-                            h - 6f,
+                            String.format("%.2f", priceLabel),
+                            4f,
+                            y,
                             android.graphics.Paint().apply {
                                 color = android.graphics.Color.DKGRAY
-                                textSize = 24f
+                                textSize = 26f
                                 isAntiAlias = true
                             }
                         )
                     }
                 }
+            }
 
-                // ✅ Draw vertical line for current time
-                val currentHourFraction = currentHour + (currentMinute / 60f)
-                val nowX = currentHourFraction * hourWidth
-                drawLine(
-                    color = Color(0xFF363636),
-                    start = Offset(nowX, 0f),
-                    end = Offset(nowX, h),
-                    strokeWidth = 3f
-                )
+            // === Scrollable chart with X-axis labels ===
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(scrollState)
+                    .background(Color.White)
+            ) {
+                // === Chart Canvas ===
+                Canvas(
+                    modifier = Modifier
+                        .width(chartWidth.dp)
+                        .height(220.dp)
+                ) {
+                    val w = size.width
+                    val h = size.height
 
-                // ✅ Step-style price chart
-                for (i in 0 until prices.size - 1) {
-                    val p1 = prices[i]
-                    val p2 = prices[i + 1]
+                    val priceToY = { price: Double ->
+                        h - ((price - minPrice) / priceRange * h).toFloat()
+                    }
 
-                    val x1 = i * hourWidth
-                    val x2 = (i + 1) * hourWidth
-                    val y1 = priceToY(p1.price)
-                    val y2 = priceToY(p2.price)
+                    // Horizontal grid lines
+                    for (i in 0..5) {
+                        val priceLabel = minPrice + i * (priceRange / 5)
+                        val y = priceToY(priceLabel)
+                        drawLine(
+                            color = Color.LightGray.copy(alpha = 0.4f),
+                            start = Offset(0f, y),
+                            end = Offset(w, y),
+                            strokeWidth = 1f,
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
+                        )
+                    }
 
-                    val color = getColorForPrice(p1.price)
+                    // Vertical grid lines
+                    for (i in 1..totalHours) {
+                        val x = i * hourWidth
+                        drawLine(
+                            color = Color.LightGray.copy(alpha = 0.3f),
+                            start = Offset(x, 0f),
+                            end = Offset(x, h),
+                            strokeWidth = 1f
+                        )
+                    }
 
+                    // Current hour vertical line
+                    val currentHourFraction = currentHour + (currentMinute / 60f)
+                    val nowX = currentHourFraction * hourWidth
                     drawLine(
-                        color = color,
-                        start = Offset(x1, y1),
-                        end = Offset(x2, y1),
-                        strokeWidth = 4f,
-                        cap = StrokeCap.Butt
+                        color = Color(0xFF363636),
+                        start = Offset(nowX, 0f),
+                        end = Offset(nowX, h),
+                        strokeWidth = 3f
                     )
-                    drawLine(
-                        color = color,
-                        start = Offset(x2, y1),
-                        end = Offset(x2, y2),
-                        strokeWidth = 4f,
-                        cap = StrokeCap.Butt
-                    )
+
+                    // Step-style chart line
+                    for (i in 0 until prices.size - 1) {
+                        val p1 = prices[i]
+                        val p2 = prices[i + 1]
+                        val x1 = i * hourWidth
+                        val x2 = (i + 1) * hourWidth
+                        val y1 = priceToY(p1.price)
+                        val y2 = priceToY(p2.price)
+                        val color = getColorForPrice(p1.price)
+
+                        drawLine(
+                            color = color,
+                            start = Offset(x1, y1),
+                            end = Offset(x2, y1),
+                            strokeWidth = 4f,
+                            cap = StrokeCap.Butt
+                        )
+                        drawLine(
+                            color = color,
+                            start = Offset(x2, y1),
+                            end = Offset(x2, y2),
+                            strokeWidth = 4f,
+                            cap = StrokeCap.Butt
+                        )
+                    }
+                }
+
+                // === X-axis labels (below chart) ===
+                Row(
+                    modifier = Modifier
+                        .width(chartWidth.dp)
+                        .height(30.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    val calendar = Calendar.getInstance(latviaTZ)
+                    for (i in 1..totalHours) { // start from 1 to skip "00"
+                        calendar.time = now.time
+                        calendar.add(Calendar.HOUR_OF_DAY, i)
+                        val hourLabel = hourFormatter.format(calendar.time)
+                        Text(
+                            text = hourLabel,
+                            fontSize = 12.sp,
+                            color = Color.DarkGray,
+                            modifier = Modifier.width(hourWidth.dp)
+                        )
+                    }
                 }
             }
         }
 
-        // ✅ Min/Max footer labels
+        // === Min/Max footer ===
         Row(
             modifier = Modifier
                 .fillMaxWidth()
