@@ -3,18 +3,8 @@
 A modern Android app built with Jetpack Compose that visualizes and tracks Nord Pool hourly electricity prices in a simple, intuitive interface.
 The app provides both a visual price trend chart and a detailed hourly list, allowing users to easily spot cheap or expensive energy hours.
 
-🧭 Features
-📈 Price Chart
 
-Real-time 24-hour line chart with dynamic colors based on price levels.
-
-Automatically adapts to today and tomorrow’s prices.
-
-A thin red vertical line marks the current hour in real time.
-
-Grid lines and labels for easy visual interpretation.
-
-
+                                                                    🧭 Features
 
 🕒 Price List
 
@@ -37,6 +27,18 @@ The hourly price, color-coded by level:
 Automatically hides past hours.
 
 Highlights the current hour in red.
+
+
+
+📈 Price Chart
+
+Real-time 24-hour line chart with dynamic colors based on price levels.
+
+Automatically adapts to today and tomorrow’s prices.
+
+A thin vertical line marks the current hour in real time.
+
+Grid lines and labels for easy visual interpretation.
 
 
 
