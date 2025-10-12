@@ -6,6 +6,7 @@ The app provides both a visual price trend chart and a detailed hourly list, all
 
                                                  🧭 Features
 
+-
     🕒 Price List
 
 Displays hourly electricity prices in a clean two-column layout (Today & Tomorrow).
