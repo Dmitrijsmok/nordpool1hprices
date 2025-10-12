@@ -4,9 +4,9 @@ A modern Android app built with Jetpack Compose that visualizes and tracks Nord 
 The app provides both a visual price trend chart and a detailed hourly list, allowing users to easily spot cheap or expensive energy hours.
 
 
-                                                                    🧭 Features
+                                                 🧭 Features
 
-🕒 Price List
+    🕒 Price List
 
 Displays hourly electricity prices in a clean two-column layout (Today & Tomorrow).
 
@@ -18,11 +18,11 @@ A bell icon to enable or disable notifications
 
 The hourly price, color-coded by level:
 
-💚 Low (below 0.10 €/kWh)
+        💚 Low (below 0.10 €/kWh)
 
-💛 Moderate (0.10 – 0.20 €/kWh)
+        💛 Moderate (0.10 – 0.20 €/kWh)
 
-❤️ High (above 0.20 €/kWh)
+        ❤️ High (above 0.20 €/kWh)
 
 Automatically hides past hours.
 
@@ -30,7 +30,7 @@ Highlights the current hour in red.
 
 
 
-📈 Price Chart
+    📈 Price Chart
 
 Real-time 24-hour line chart with dynamic colors based on price levels.
 
@@ -42,7 +42,7 @@ Grid lines and labels for easy visual interpretation.
 
 
 
-🔔 Notifications
+    🔔 Notifications
 
 Users can tap the bell icon to schedule a reminder for upcoming low-price hours.
 
@@ -52,7 +52,7 @@ Works even if the app is in the background.
 
 
 
-🪶 Interface
+    🪶 Interface
 
 Built with Jetpack Compose (Material 3) for a modern, responsive UI.
 
@@ -62,7 +62,7 @@ Smooth padding and typography for visual clarity.
 
 
 
-🧩 Tech Stack
+    🧩 Tech Stack
 Component	Technology
 UI Framework	Jetpack Compose (Material 3)
 Networking	OkHttp
@@ -74,7 +74,7 @@ Minimum SDK	24 (Android 7.0 Nougat)
 Target SDK	34 (Android 14)
 
 
-⚙️ How It Works
+    ⚙️ How It Works
 
 On app launch, the data is fetched from the Nord Pool hourly API (via CSV).
 
