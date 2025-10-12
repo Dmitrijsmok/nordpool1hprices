@@ -14,8 +14,8 @@ android {
         applicationId = "com.example.nordpool1hprices"
         minSdk = 24
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.7"
+        versionCode = 4
+        versionName = "1.8"
     }
     buildFeatures {
         buildConfig = true

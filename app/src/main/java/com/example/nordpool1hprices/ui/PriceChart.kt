@@ -47,7 +47,7 @@ fun PriceChart(prices: List<PriceEntry>) {
     // === Layout scaling ===
     val configuration = LocalConfiguration.current
     val screenWidthPx = configuration.screenWidthDp * (configuration.densityDpi / 160f)
-    val hourWidth = screenWidthPx / 16f   // 12 hours = screen width
+    val hourWidth = screenWidthPx / 16f   // about 12–16 hours per screen
     val chartWidth = totalHours * hourWidth
 
     val scrollState = rememberScrollState()
@@ -61,7 +61,6 @@ fun PriceChart(prices: List<PriceEntry>) {
             .coerceIn(0, (chartWidth - screenWidthPx).toInt())
         scrollState.animateScrollTo(centerScroll)
     }
-
 
     Column(
         modifier = Modifier
@@ -122,10 +121,10 @@ fun PriceChart(prices: List<PriceEntry>) {
                     modifier = Modifier
                         .width((chartWidth / (configuration.densityDpi / 160f)).dp)
                         .height(260.dp)
-                        .padding(bottom = 16.dp) // leave space for hour labels
+                        .padding(bottom = 16.dp)
                 ) {
                     val w = size.width
-                    val h = size.height - 24f // reserve bottom area for labels
+                    val h = size.height - 24f // bottom space for labels
 
                     val priceToY = { price: Double ->
                         h - ((price - minPrice) / priceRange * h).toFloat()
@@ -159,7 +158,7 @@ fun PriceChart(prices: List<PriceEntry>) {
                         drawContext.canvas.nativeCanvas.drawText(
                             hourLabel,
                             x + 6f,
-                            h + 36f, // place labels below the chart line
+                            h + 36f,
                             android.graphics.Paint().apply {
                                 color = android.graphics.Color.DKGRAY
                                 textSize = 26f
@@ -169,33 +168,30 @@ fun PriceChart(prices: List<PriceEntry>) {
                         calendar.add(Calendar.HOUR_OF_DAY, 1)
                     }
 
-                    // === Current time marker ===
-                    val currentHourFraction =
-                        now.get(Calendar.HOUR_OF_DAY) + now.get(Calendar.MINUTE) / 60f
+                    // === Highlight current hour with translucent bar ===
                     val baseHour =
                         firstTime?.let { (now.time.time - it.time) / (1000 * 60 * 60f) } ?: 0f
-                    val nowX = baseHour * hourWidth
-                    if (nowX in 0f..w) {
-                        drawLine(
-                            color = Color(0xFF363636),
-                            start = Offset(nowX, 0f),
-                            end = Offset(nowX, h),
-                            strokeWidth = 3f
-                        )
-                    }
+                    val barCenterX = baseHour * hourWidth
+                    val barWidth = hourWidth * 0.8f
+                    val barLeft = barCenterX - barWidth / 2f
+                    val barRight = barCenterX + barWidth / 2f
 
-                    // === Step-style chart ===
+                    drawRect(
+                        color = Color.LightGray.copy(alpha = 0.3f),
+                        topLeft = Offset(barLeft, 0f),
+                        size = androidx.compose.ui.geometry.Size(barWidth, h)
+                    )
+
+                    // === Step-style price line ===
                     for (i in 0 until prices.size - 1) {
                         val p1 = prices[i]
                         val p2 = prices[i + 1]
                         val y1 = priceToY(p1.price)
                         val y2 = priceToY(p2.price)
-
                         val x1 =
                             ((sdf.parse(p1.start)?.time ?: 0) - (firstTime?.time ?: 0)) / (1000 * 60 * 60f) * hourWidth
                         val x2 =
                             ((sdf.parse(p2.start)?.time ?: 0) - (firstTime?.time ?: 0)) / (1000 * 60 * 60f) * hourWidth
-
                         val color = getColorForPrice(p1.price)
                         drawLine(color, Offset(x1, y1), Offset(x2, y1), 4f, StrokeCap.Butt)
                         drawLine(color, Offset(x2, y1), Offset(x2, y2), 4f, StrokeCap.Butt)

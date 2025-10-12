@@ -10,55 +10,37 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.Menu
 import com.example.nordpool1hprices.model.PriceEntry
 import com.example.nordpool1hprices.network.PriceRepository
-import com.example.nordpool1hprices.ui.PriceChart
-import com.example.nordpool1hprices.ui.PriceList
+import com.example.nordpool1hprices.network.UpdateInfo
+import com.example.nordpool1hprices.network.UpdateRepository
+import com.example.nordpool1hprices.ui.*
+import com.example.nordpool1hprices.utils.ApkDownloader
+import com.example.nordpool1hprices.utils.ApkDownloader.downloadProgress
+import com.example.nordpool1hprices.utils.ApkDownloader.isDownloading
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
-import androidx.compose.ui.platform.LocalContext
-import com.example.nordpool1hprices.network.UpdateRepository
-import com.example.nordpool1hprices.network.UpdateInfo
-import com.example.nordpool1hprices.ui.UpdateDialog
-import com.example.nordpool1hprices.utils.ApkDownloader
-import com.example.nordpool1hprices.ui.DownloadProgressDialog
-import com.example.nordpool1hprices.utils.ApkDownloader.isDownloading
-import com.example.nordpool1hprices.utils.ApkDownloader.downloadProgress
-import com.example.nordpool1hprices.BuildConfig
-fun parseFlexibleDate(raw: String): Date? {
-    val patterns = listOf(
-        "yyyy-MM-dd'T'HH:mm:ssXXX",   // ISO 8601 with timezone
-        "yyyy-MM-dd'T'HH:mm:ss",      // ISO 8601 without timezone
-        "yyyy-MM-dd HH:mm:ss",        // Space separated
-        "yyyy-MM-dd HH:mm"            // Just in case (short form)
-    )
 
-    for (pattern in patterns) {
-        try {
-            val sdf = SimpleDateFormat(pattern, Locale.getDefault()).apply {
-                timeZone = TimeZone.getTimeZone("UTC")
-            }
-            return sdf.parse(raw)
-        } catch (_: Exception) { }
-    }
-    return null
-}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // ✅ Request notification permission for Android 13+ (API 33+)
+        // ✅ Request notification permission (Android 13+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED
@@ -77,18 +59,18 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun NordpoolApp() {
     val currentVersion = BuildConfig.VERSION_NAME
-    // ✅ Declare your prices list here
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // === State ===
     var prices by remember { mutableStateOf<List<PriceEntry>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
-    val scope = rememberCoroutineScope()
-    val context = LocalContext.current
     var showUpdateDialog by remember { mutableStateOf(false) }
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+    var showAbout by remember { mutableStateOf(false) }
 
-    // ✅ Check for updates once when app starts
+    // === Remote update check ===
     LaunchedEffect(Unit) {
-
-        // ⚠️ Use the link to your update.json, NOT the .apk
         val remoteUrl =
             "https://gitlab.com/dmitrijsmok1/nordpool1hprices-updates/-/raw/main/update.json"
         val info = UpdateRepository.checkForUpdate(remoteUrl)
@@ -98,7 +80,7 @@ fun NordpoolApp() {
         }
     }
 
-    // ✅ Show update dialog when new version available
+    // === Update dialog ===
     if (showUpdateDialog && updateInfo != null) {
         UpdateDialog(
             version = updateInfo!!.latestVersion,
@@ -110,12 +92,13 @@ fun NordpoolApp() {
             onDismiss = { showUpdateDialog = false }
         )
     }
-// ✅ Show download progress UI
+
+    // === Download progress dialog ===
     if (isDownloading) {
         DownloadProgressDialog(progress = downloadProgress)
     }
 
-    // ✅ Fetch prices
+    // === Fetch prices ===
     LaunchedEffect(Unit) {
         scope.launch {
             try {
@@ -129,16 +112,23 @@ fun NordpoolApp() {
 
             } catch (e: Exception) {
                 Log.e("NordpoolApp", "❌ Failed to fetch prices", e)
-                Toast.makeText(context, "Error fetching prices: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Error fetching prices: ${e.message}", Toast.LENGTH_LONG)
+                    .show()
             } finally {
                 loading = false
             }
         }
     }
 
+    // === About screen ===
+    if (showAbout) {
+        AboutScreen(onBack = { showAbout = false })
+        return
+    }
+
+    // === Main UI ===
     Scaffold(
         topBar = {
-            // ✅ Centered gradient title bar
             TopAppBar(
                 title = {
                     Box(
@@ -148,8 +138,8 @@ fun NordpoolApp() {
                             .background(
                                 brush = Brush.horizontalGradient(
                                     colors = listOf(
-                                        Color(0xFF2E7D32).copy(alpha = 0.8f), // dark green
-                                        Color(0xFF66BB6A).copy(alpha = 0.8f)  // light green
+                                        Color(0xFF2E7D32).copy(alpha = 0.8f),
+                                        Color(0xFF66BB6A).copy(alpha = 0.8f)
                                     )
                                 )
                             ),
@@ -164,11 +154,19 @@ fun NordpoolApp() {
                         )
                     }
                 },
+                navigationIcon = {
+                    IconButton(onClick = { showAbout = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Menu, // ☰ three stripes
+                            contentDescription = "About / Menu",
+                            tint = Color.LightGray
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
                     titleContentColor = Color.White
-                ),
-                modifier = Modifier.fillMaxWidth()
+                )
             )
         }
     ) { padding ->
@@ -182,17 +180,11 @@ fun NordpoolApp() {
                 CircularProgressIndicator()
             }
         } else {
-            val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault()).apply {
-                timeZone = TimeZone.getTimeZone("UTC")
-            }
             val nowUtc = Calendar.getInstance(TimeZone.getTimeZone("UTC")).time
-
             val futurePrices = prices.filter { entry ->
                 val startDate = parseFlexibleDate(entry.start)
                 startDate?.after(nowUtc) == true
             }.sortedBy { parseFlexibleDate(it.start) }
-
-            Log.d("NordpoolApp", "✅ After filter: ${futurePrices.size} entries remain")
 
             Box(
                 modifier = Modifier
@@ -204,23 +196,61 @@ fun NordpoolApp() {
                         .fillMaxSize()
                         .padding(horizontal = 8.dp)
                 ) {
+                    // === Chart ===
                     PriceChart(futurePrices)
+
+                    // === Resolution toggle placeholder ===
+//                    Spacer(modifier = Modifier.height(8.dp))
+//                    Row(
+//                        modifier = Modifier
+//                            .fillMaxWidth()
+//                            .padding(horizontal = 12.dp),
+//                        horizontalArrangement = Arrangement.Center
+//                    ) {
+//                        Text(text = "Resolution:", color = Color.Gray, fontSize = 13.sp)
+//                        Button(
+//                            onClick = { /* TODO: toggle between 1h / 15min */ },
+//                            modifier = Modifier.padding(start = 8.dp),
+//                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF66BB6A))
+//                        ) {
+//                            Text("1h / 15min")
+//                        }
+//                    }
+
                     Spacer(modifier = Modifier.height(16.dp))
                     PriceList(futurePrices)
                 }
 
-                // ✅ Version label pinned to bottom-right
-// ✅ Version label pinned to bottom-right
-                Text(
-                    text = "v$currentVersion",
-                    color = Color.Gray.copy(alpha = 0.8f),
-                    fontSize = 12.sp,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 10.dp, bottom = 6.dp)
-                )
-
+                // === Version label ===
+//                Text(
+//                    text = "v$currentVersion",
+//                    color = Color.Gray.copy(alpha = 0.8f),
+//                    fontSize = 12.sp,
+//                    modifier = Modifier
+//                        .align(Alignment.BottomEnd)
+//                        .padding(end = 10.dp, bottom = 6.dp)
+//                )
             }
         }
     }
+}
+
+fun parseFlexibleDate(raw: String): Date? {
+    val patterns = listOf(
+        "yyyy-MM-dd'T'HH:mm:ssXXX",
+        "yyyy-MM-dd'T'HH:mm:ss",
+        "yyyy-MM-dd HH:mm:ss",
+        "yyyy-MM-dd HH:mm"
+    )
+
+    for (pattern in patterns) {
+        try {
+            val sdf = SimpleDateFormat(pattern, Locale.getDefault()).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
+            return sdf.parse(raw)
+        } catch (_: Exception) {
+        }
+    }
+    return null
 }
