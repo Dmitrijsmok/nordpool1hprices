@@ -8,8 +8,9 @@ import android.os.Build
 import android.os.Environment
 import android.provider.Settings
 import android.widget.Toast
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.*
@@ -17,9 +18,9 @@ import java.io.File
 
 object ApkDownloader {
 
-    // 🧭 UI state
-    var downloadProgress by mutableStateOf(0)
-    var isDownloading by mutableStateOf(false)
+    // === UI states for Compose ===
+    var downloadProgress by mutableIntStateOf(0) // progress in %
+    var isDownloading by mutableStateOf(false)   // true while downloading
 
     private var downloadId: Long = -1L
     private var receiver: BroadcastReceiver? = null
@@ -28,19 +29,19 @@ object ApkDownloader {
         try {
             val fileName = apkUrl.substringAfterLast("/")
             val destinationFile = File(
-                context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
                 fileName
             )
 
-            // Remove old file
+            // Remove old file if exists
             if (destinationFile.exists()) destinationFile.delete()
 
-            // 🔽 Setup DownloadManager request
+            // 🔽 Configure DownloadManager request
             val request = DownloadManager.Request(Uri.parse(apkUrl))
                 .setTitle("Downloading update")
                 .setDescription("Fetching the latest version…")
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
-                .setDestinationUri(Uri.fromFile(destinationFile))
+                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
                 .setAllowedOverMetered(true)
                 .setAllowedOverRoaming(true)
 
@@ -51,7 +52,7 @@ object ApkDownloader {
             isDownloading = true
             downloadProgress = 0
 
-            // 🧩 BroadcastReceiver for completion
+            // === BroadcastReceiver: handle completion ===
             receiver = object : BroadcastReceiver() {
                 override fun onReceive(ctx: Context?, intent: Intent?) {
                     val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
@@ -63,26 +64,27 @@ object ApkDownloader {
                         try {
                             ctx?.unregisterReceiver(this)
                             receiver = null
-                        } catch (_: Exception) {}
+                        } catch (_: Exception) { }
                     }
                 }
             }
 
             // ✅ Register receiver safely for API 24–34+
-            if (Build.VERSION.SDK_INT >= 33) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 context.registerReceiver(
                     receiver,
                     IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
                     Context.RECEIVER_NOT_EXPORTED
                 )
             } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag", "DEPRECATION")
                 context.registerReceiver(
                     receiver,
                     IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
                 )
             }
 
-            // 🔁 Coroutine: track download progress
+            // 🔁 Coroutine: monitor progress
             CoroutineScope(Dispatchers.IO).launch {
                 var downloading = true
                 while (downloading) {
@@ -121,10 +123,10 @@ object ApkDownloader {
         }
     }
 
-    // ✅ Secure installation flow for API 24–34+
+    // === Secure installer flow for API 24–34+ ===
     private fun installApk(context: Context, apkFile: File) {
         try {
-            // 🔒 Android 8+ requires permission to install from unknown sources
+            // Android 8+ requires permission for unknown sources
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val canInstall = context.packageManager.canRequestPackageInstalls()
                 if (!canInstall) {
@@ -138,7 +140,7 @@ object ApkDownloader {
                 }
             }
 
-            // 📦 Use FileProvider to serve APK URI
+            // 📦 Build safe APK URI
             val apkUri: Uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 FileProvider.getUriForFile(
                     context,
@@ -149,6 +151,7 @@ object ApkDownloader {
                 Uri.fromFile(apkFile)
             }
 
+            // Launch system installer
             val installIntent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(apkUri, "application/vnd.android.package-archive")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
