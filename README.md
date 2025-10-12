@@ -37,7 +37,7 @@ Real-time 24-hour line chart with dynamic colors based on price levels.
 
 Automatically adapts to today and tomorrow’s prices.
 
-A thin vertical line marks the current hour in real time.
+Grey vertical bar marks the current hour in real time.
 
 Grid lines and labels for easy visual interpretation.
 
