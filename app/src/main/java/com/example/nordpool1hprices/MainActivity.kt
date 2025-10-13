@@ -1,6 +1,7 @@
 package com.example.nordpool1hprices
 
 import android.Manifest
+import android.app.Activity
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -11,7 +12,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,19 +23,22 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.filled.Menu
 import com.example.nordpool1hprices.model.PriceEntry
 import com.example.nordpool1hprices.network.PriceRepository
 import com.example.nordpool1hprices.network.UpdateInfo
 import com.example.nordpool1hprices.network.UpdateRepository
-import com.example.nordpool1hprices.ui.*
+import com.example.nordpool1hprices.ui.AboutScreen
+import com.example.nordpool1hprices.ui.DownloadProgressDialog
+import com.example.nordpool1hprices.ui.PriceChart
+import com.example.nordpool1hprices.ui.PriceList
+import com.example.nordpool1hprices.ui.UpdateDialog
 import com.example.nordpool1hprices.utils.ApkDownloader
 import com.example.nordpool1hprices.utils.ApkDownloader.downloadProgress
 import com.example.nordpool1hprices.utils.ApkDownloader.isDownloading
+import com.example.nordpool1hprices.BuildConfig
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
-
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -80,45 +84,31 @@ fun NordpoolApp() {
         }
     }
 
-    // === Update dialog ===
     if (showUpdateDialog && updateInfo != null) {
         UpdateDialog(
             version = updateInfo!!.latestVersion,
             changelog = updateInfo!!.changelog,
             onConfirm = {
                 showUpdateDialog = false
-                ApkDownloader.downloadAndInstall(context, updateInfo!!.apkUrl)
+                val activity = context as? Activity
+                if (activity != null) {
+                    ApkDownloader.downloadAndInstall(activity, updateInfo!!.apkUrl)
+                } else {
+                    Toast.makeText(
+                        context,
+                        "Update failed: unable to access activity context",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
             },
             onDismiss = { showUpdateDialog = false }
         )
     }
 
-    // === Download progress dialog ===
-    if (isDownloading) {
-        DownloadProgressDialog(progress = downloadProgress)
+    if (ApkDownloader.isDownloading) {
+        DownloadProgressDialog(progress = ApkDownloader.downloadProgress)
     }
 
-    // === Fetch prices ===
-    LaunchedEffect(Unit) {
-        scope.launch {
-            try {
-                Log.d("NordpoolApp", "⏳ Fetching hourly prices...")
-                prices = PriceRepository.getHourlyPrices()
-                Log.d("NordpoolApp", "✅ Received ${prices.size} entries")
-
-                if (prices.isEmpty()) {
-                    Toast.makeText(context, "No data from API!", Toast.LENGTH_LONG).show()
-                }
-
-            } catch (e: Exception) {
-                Log.e("NordpoolApp", "❌ Failed to fetch prices", e)
-                Toast.makeText(context, "Error fetching prices: ${e.message}", Toast.LENGTH_LONG)
-                    .show()
-            } finally {
-                loading = false
-            }
-        }
-    }
 
     // === About screen ===
     if (showAbout) {
@@ -157,7 +147,7 @@ fun NordpoolApp() {
                 navigationIcon = {
                     IconButton(onClick = { showAbout = true }) {
                         Icon(
-                            imageVector = Icons.Default.Menu, // ☰ three stripes
+                            imageVector = Icons.Default.Menu,
                             contentDescription = "About / Menu",
                             tint = Color.LightGray
                         )
@@ -199,42 +189,27 @@ fun NordpoolApp() {
                     // === Chart ===
                     PriceChart(futurePrices)
 
-                    // === Resolution toggle placeholder ===
-//                    Spacer(modifier = Modifier.height(8.dp))
-//                    Row(
-//                        modifier = Modifier
-//                            .fillMaxWidth()
-//                            .padding(horizontal = 12.dp),
-//                        horizontalArrangement = Arrangement.Center
-//                    ) {
-//                        Text(text = "Resolution:", color = Color.Gray, fontSize = 13.sp)
-//                        Button(
-//                            onClick = { /* TODO: toggle between 1h / 15min */ },
-//                            modifier = Modifier.padding(start = 8.dp),
-//                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF66BB6A))
-//                        ) {
-//                            Text("1h / 15min")
-//                        }
-//                    }
-
                     Spacer(modifier = Modifier.height(16.dp))
+
+                    // === Price list (always 1h resolution) ===
                     PriceList(futurePrices)
                 }
 
-                // === Version label ===
-//                Text(
-//                    text = "v$currentVersion",
-//                    color = Color.Gray.copy(alpha = 0.8f),
-//                    fontSize = 12.sp,
-//                    modifier = Modifier
-//                        .align(Alignment.BottomEnd)
-//                        .padding(end = 10.dp, bottom = 6.dp)
-//                )
+                // === Version label (optional)
+                Text(
+                    text = "v$currentVersion",
+                    color = Color.Gray.copy(alpha = 0.8f),
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 10.dp, bottom = 6.dp)
+                )
             }
         }
     }
 }
 
+// === Flexible date parser ===
 fun parseFlexibleDate(raw: String): Date? {
     val patterns = listOf(
         "yyyy-MM-dd'T'HH:mm:ssXXX",

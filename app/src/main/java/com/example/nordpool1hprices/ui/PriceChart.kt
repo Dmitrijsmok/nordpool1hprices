@@ -47,18 +47,18 @@ fun PriceChart(prices: List<PriceEntry>) {
     // === Layout scaling ===
     val configuration = LocalConfiguration.current
     val screenWidthPx = configuration.screenWidthDp * (configuration.densityDpi / 160f)
-    val hourWidth = screenWidthPx / 16f   // about 12–16 hours per screen
+    val hourWidth = screenWidthPx / 16f // about 12–16 hours per screen
     val chartWidth = totalHours * hourWidth
-
     val scrollState = rememberScrollState()
 
     // === Center chart on current hour when opened ===
     LaunchedEffect(prices) {
         val baseHour = firstTime?.let { (now.time.time - it.time) / (1000 * 60 * 60f) } ?: 0f
         val nowX = baseHour * hourWidth
+        val maxScroll = (chartWidth - screenWidthPx).coerceAtLeast(0f) // ✅ never negative
         val centerScroll = (nowX - screenWidthPx / 2)
             .toInt()
-            .coerceIn(0, (chartWidth - screenWidthPx).toInt())
+            .coerceIn(0, maxScroll.toInt())
         scrollState.animateScrollTo(centerScroll)
     }
 
@@ -144,7 +144,10 @@ fun PriceChart(prices: List<PriceEntry>) {
                     }
 
                     // === Vertical grid + hour labels ===
-                    val calendar = Calendar.getInstance(latviaTZ).apply { time = firstTime ?: now.time }
+                    val calendar = Calendar.getInstance(latviaTZ).apply {
+                        time = firstTime ?: now.time
+                    }
+
                     for (i in 0..totalHours) {
                         val x = i * hourWidth
                         drawLine(
@@ -174,7 +177,6 @@ fun PriceChart(prices: List<PriceEntry>) {
                     val barCenterX = baseHour * hourWidth
                     val barWidth = hourWidth * 0.8f
                     val barLeft = barCenterX - barWidth / 2f
-                    val barRight = barCenterX + barWidth / 2f
 
                     drawRect(
                         color = Color.LightGray.copy(alpha = 0.3f),
@@ -189,9 +191,11 @@ fun PriceChart(prices: List<PriceEntry>) {
                         val y1 = priceToY(p1.price)
                         val y2 = priceToY(p2.price)
                         val x1 =
-                            ((sdf.parse(p1.start)?.time ?: 0) - (firstTime?.time ?: 0)) / (1000 * 60 * 60f) * hourWidth
+                            ((sdf.parse(p1.start)?.time ?: 0) - (firstTime?.time ?: 0)) /
+                                    (1000 * 60 * 60f) * hourWidth
                         val x2 =
-                            ((sdf.parse(p2.start)?.time ?: 0) - (firstTime?.time ?: 0)) / (1000 * 60 * 60f) * hourWidth
+                            ((sdf.parse(p2.start)?.time ?: 0) - (firstTime?.time ?: 0)) /
+                                    (1000 * 60 * 60f) * hourWidth
                         val color = getColorForPrice(p1.price)
                         drawLine(color, Offset(x1, y1), Offset(x2, y1), 4f, StrokeCap.Butt)
                         drawLine(color, Offset(x2, y1), Offset(x2, y2), 4f, StrokeCap.Butt)

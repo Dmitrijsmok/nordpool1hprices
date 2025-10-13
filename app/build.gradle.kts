@@ -1,6 +1,7 @@
 import org.gradle.api.tasks.Copy
 import java.io.File
 
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -14,11 +15,17 @@ android {
         applicationId = "com.example.nordpool1hprices"
         minSdk = 24
         targetSdk = 34
-        versionCode = 4
-        versionName = "1.8"
+        versionCode = 6
+        versionName = "1.8.2"
     }
+
+    // Build commands:
+    // ./gradlew clean assembleRelease publishReleaseApk
+    // ./gradlew clean assembleRelease publishAndPushUpdate
+
     buildFeatures {
         buildConfig = true
+        compose = true
     }
 
     compileOptions {
@@ -30,19 +37,21 @@ android {
         jvmTarget = "17"
     }
 
-    buildFeatures {
-        compose = true
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.14"
     }
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.3"
-    }
     signingConfigs {
         create("release") {
-            storeFile = file(System.getenv("RELEASE_STORE_FILE") ?: project.findProperty("RELEASE_STORE_FILE") ?: "nordpool1hprices.jks")
-            storePassword = System.getenv("RELEASE_STORE_PASSWORD")?.toString() ?: project.findProperty("RELEASE_STORE_PASSWORD")?.toString()
-            keyAlias = System.getenv("RELEASE_KEY_ALIAS")?.toString() ?: project.findProperty("RELEASE_KEY_ALIAS")?.toString()
-            keyPassword = System.getenv("RELEASE_KEY_PASSWORD")?.toString() ?: project.findProperty("RELEASE_KEY_PASSWORD")?.toString()
+            storeFile = file(System.getenv("RELEASE_STORE_FILE")
+                ?: project.findProperty("RELEASE_STORE_FILE")
+                ?: "nordpool1hprices.jks")
+            storePassword = System.getenv("RELEASE_STORE_PASSWORD")?.toString()
+                ?: project.findProperty("RELEASE_STORE_PASSWORD")?.toString()
+            keyAlias = System.getenv("RELEASE_KEY_ALIAS")?.toString()
+                ?: project.findProperty("RELEASE_KEY_ALIAS")?.toString()
+            keyPassword = System.getenv("RELEASE_KEY_PASSWORD")?.toString()
+                ?: project.findProperty("RELEASE_KEY_PASSWORD")?.toString()
         }
     }
 
@@ -68,30 +77,29 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
     implementation("androidx.browser:browser:1.8.0")
-
+    // Jetpack DataStore (Preferences)
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
 }
 
-// === Auto-publish helper (signed release) ===
+// ==============================
+// 📦 Task: Copy release APK
+// ==============================
 tasks.register<Copy>("publishReleaseApk") {
     group = "publishing"
     description = "Copies and renames the signed release APK with versionName."
 
-    // Ensure the release build happens first
     dependsOn("assembleRelease")
 
-    // Read versionName from Gradle Android config
     val versionName = android.defaultConfig.versionName ?: "unknown"
 
-    // Source: signed APK location
+    // ✅ Source inside app build
     val releaseApk = layout.buildDirectory.file("outputs/apk/release/app-release.apk")
 
-    // Destination: your custom update folder
+    // ✅ Destination is sibling repo (outside project folder)
     val destinationDir = layout.projectDirectory.dir("../../nordpool1hprices-updates")
 
     from(releaseApk)
     into(destinationDir)
-
-    // Rename to include version
     rename { "nordPool1hPrices-v$versionName.apk" }
 
     doFirst {
@@ -102,33 +110,44 @@ tasks.register<Copy>("publishReleaseApk") {
 
     doLast {
         println("✅ APK renamed and copied successfully:")
-        println("   ${destinationDir.asFile.absolutePath}/app-release-v$versionName.apk")
+        println("   ${destinationDir.asFile.absolutePath}/nordPool1hPrices-v$versionName.apk")
     }
 }
 
+// ==============================
+// 🔧 Task: Generate update.json and push
+// ==============================
 tasks.register("publishAndPushUpdate") {
-    group = "publishing"
-    description = "Publishes signed APK, updates JSON, and pushes to GitLab."
+    group = "distribution"
+    description = "Generates update.json and pushes it to GitLab."
 
     dependsOn("publishReleaseApk")
 
     doLast {
+        val username = "dmitrijsmok1"
         val versionName = android.defaultConfig.versionName ?: "unknown"
-        val updateDir = file("${project.rootDir}/../nordpool1hprices-updates")
 
-        // 1️⃣ Generate update.json dynamically
+        // ✅ Point to the external updates repo
+        val updateDir = File("${project.rootDir}/../nordpool1hprices-updates")
+        val apkFile = File(updateDir, "nordPool1hPrices-v$versionName.apk")
+
+        if (!apkFile.exists()) {
+            throw GradleException("❌ APK not found at ${apkFile.absolutePath}. Did publishReleaseApk run correctly?")
+        }
+
         val updateJson = """
             {
               "latestVersion": "$versionName",
-              "changelog": "Updated via automated Gradle publish task.",
-              "apkUrl": "https://gitlab.com/<your-username>/nordpool1hprices-updates/-/raw/main/app-release-v$versionName.apk"
+              "changelog": "New update",
+              "apkUrl": "https://gitlab.com/$username/nordpool1hprices-updates/-/raw/main/${apkFile.name}"
             }
         """.trimIndent()
 
-        File(updateDir, "update.json").writeText(updateJson)
-        println("📝 Created update.json for version $versionName")
+        val outputFile = File(updateDir, "update.json")
+        outputFile.writeText(updateJson)
+        println("📝 Created update.json for version $versionName at ${outputFile.absolutePath}")
 
-        // 2️⃣ Commit & push to GitLab
+        // --- Git push sequence ---
         exec {
             workingDir(updateDir)
             commandLine("git", "add", ".")
@@ -136,7 +155,7 @@ tasks.register("publishAndPushUpdate") {
         exec {
             workingDir(updateDir)
             commandLine("git", "commit", "-m", "Release v$versionName")
-            isIgnoreExitValue = true // avoid failure if nothing to commit
+            isIgnoreExitValue = true
         }
         exec {
             workingDir(updateDir)
@@ -146,11 +165,3 @@ tasks.register("publishAndPushUpdate") {
         println("🚀 Update pushed to GitLab successfully.")
     }
 }
-
-// Helper extension to access android block easily
-fun org.gradle.api.Project.androidAppExtension() =
-    extensions.getByName("android") as com.android.build.gradle.internal.dsl.BaseAppModuleExtension
-//build app
-//    ./gradlew clean assembleRelease publishReleaseApk
-//commit and push automatically
-//    ./gradlew clean assembleRelease publishAndPushUpdate

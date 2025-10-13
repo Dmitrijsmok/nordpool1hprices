@@ -44,9 +44,43 @@ fun PriceList(prices: List<PriceEntry>) {
     val now = Calendar.getInstance(latviaTZ)
     val nowDate = now.time
 
-    val grouped = prices.groupBy { entry ->
+    // --- ✅ Group entries per hour and average them ---
+    val hourlyEntries: List<PriceEntry> = prices
+        .groupBy { entry ->
+            // Key = start time rounded down to nearest hour
+            val date = runCatching { sdf.parse(entry.start) }.getOrNull()
+            if (date != null) {
+                val cal = Calendar.getInstance(latviaTZ).apply { time = date }
+                cal.set(Calendar.MINUTE, 0)
+                cal.set(Calendar.SECOND, 0)
+                cal.set(Calendar.MILLISECOND, 0)
+                dayKeyFormat.format(cal.time) + " " + String.format("%02d", cal.get(Calendar.HOUR_OF_DAY))
+            } else ""
+        }
+        .mapNotNull { (key, group) ->
+            if (key.isEmpty() || group.isEmpty()) return@mapNotNull null
+            val startCal = Calendar.getInstance(latviaTZ)
+            startCal.time = sdf.parse(group.first().start) ?: return@mapNotNull null
+            startCal.set(Calendar.MINUTE, 0)
+            startCal.set(Calendar.SECOND, 0)
+            startCal.set(Calendar.MILLISECOND, 0)
+
+            val endCal = startCal.clone() as Calendar
+            endCal.add(Calendar.HOUR_OF_DAY, 1)
+
+            PriceEntry(
+                start = sdf.format(startCal.time),
+                end = sdf.format(endCal.time),
+                price = group.map { it.price }.average(),
+                notify = group.any { it.notify }
+            )
+        }
+        .sortedBy { sdf.parse(it.start) }
+
+    // --- Group by day again ---
+    val grouped = hourlyEntries.groupBy {
         runCatching {
-            val dt = sdf.parse(entry.start)
+            val dt = sdf.parse(it.start)
             if (dt != null) dayKeyFormat.format(dt) else ""
         }.getOrDefault("")
     }
@@ -89,10 +123,9 @@ fun PriceList(prices: List<PriceEntry>) {
                 }
 
                 val validEntries = entriesForDay
-                    .filter { entry ->
-                        val start = runCatching { sdf.parse(entry.start) }.getOrNull()
-                        val end = runCatching { sdf.parse(entry.end) }.getOrNull()
-                        start != null && end != null && !end.before(nowDate)
+                    .filter {
+                        val end = runCatching { sdf.parse(it.end) }.getOrNull()
+                        end != null && !end.before(nowDate)
                     }
                     .sortedBy { sdf.parse(it.start) }
 
@@ -136,10 +169,9 @@ fun PriceList(prices: List<PriceEntry>) {
                                     fontSize = if (isNow) 13.sp else 14.sp
                                 )
 
-                                // 🔔 Bell button logic
                                 val context = LocalContext.current
-                                val activity = context as? Activity
 
+                                // 🔔 Notification button
                                 IconButton(
                                     onClick = {
                                         notify = !notify
