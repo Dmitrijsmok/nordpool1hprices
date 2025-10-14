@@ -47,7 +47,6 @@ fun PriceList(prices: List<PriceEntry>) {
     // --- ✅ Group entries per hour and average them ---
     val hourlyEntries: List<PriceEntry> = prices
         .groupBy { entry ->
-            // Key = start time rounded down to nearest hour
             val date = runCatching { sdf.parse(entry.start) }.getOrNull()
             if (date != null) {
                 val cal = Calendar.getInstance(latviaTZ).apply { time = date }
@@ -77,7 +76,6 @@ fun PriceList(prices: List<PriceEntry>) {
         }
         .sortedBy { sdf.parse(it.start) }
 
-    // --- Group by day again ---
     val grouped = hourlyEntries.groupBy {
         runCatching {
             val dt = sdf.parse(it.start)
@@ -151,6 +149,8 @@ fun PriceList(prices: List<PriceEntry>) {
                             val intPart = parts.getOrElse(0) { "0" }
                             val fracPart = parts.getOrElse(1) { "000" }
 
+                            val context = LocalContext.current
+
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -169,35 +169,32 @@ fun PriceList(prices: List<PriceEntry>) {
                                     fontSize = if (isNow) 13.sp else 14.sp
                                 )
 
-                                val context = LocalContext.current
-
                                 // 🔔 Notification button
                                 IconButton(
                                     onClick = {
                                         notify = !notify
                                         entry.notify = notify
 
+                                        // ✅ Android 13+ POST_NOTIFICATIONS permission check
                                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                                             val hasPermission =
-                                                context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                                                context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+                                                        PackageManager.PERMISSION_GRANTED
 
                                             if (!hasPermission) {
-                                                try {
-                                                    val settingsIntent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                                                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                    }
-                                                    context.startActivity(settingsIntent)
-                                                } catch (e: Exception) {
-                                                    Toast.makeText(context, "Please allow notifications in settings.", Toast.LENGTH_SHORT).show()
-                                                }
+                                                Toast.makeText(
+                                                    context,
+                                                    "Please enable notifications in Android settings.",
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                                // 🔕 Do NOT redirect user — just stop here
                                                 return@IconButton
                                             }
                                         }
 
+                                        // ✅ Schedule or cancel notification
                                         val triggerTimeMillis = (startDate.time - 10 * 60 * 1000)
                                             .coerceAtLeast(System.currentTimeMillis() + 5_000)
-
                                         val priceText = String.format("%.3f", entry.price)
 
                                         if (notify) {
@@ -227,6 +224,7 @@ fun PriceList(prices: List<PriceEntry>) {
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
+
 
                                 // 💰 Price
                                 Row(

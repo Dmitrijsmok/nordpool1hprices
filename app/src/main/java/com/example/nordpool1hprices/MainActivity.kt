@@ -2,6 +2,8 @@ package com.example.nordpool1hprices
 
 import android.Manifest
 import android.app.Activity
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -50,6 +52,31 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // ✅ Always create the notification channel (ensures app appears in notification list)
+        val manager = getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                "nordpool_channel",
+                "Nord Pool Alerts",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Hourly price notifications for Nord Pool"
+            }
+            manager.createNotificationChannel(channel)
+        }
+
+        // ✅ Optionally trigger one short "registration" notification
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val builder = android.app.Notification.Builder(this, "nordpool_channel")
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle("Nord Pool notifications ready")
+                .setContentText("Tap to manage notification settings")
+                .setAutoCancel(true)
+
+            val nm = getSystemService(NotificationManager::class.java)
+            nm.notify(9999, builder.build())
+        }
+
         setContent {
             NordpoolApp()
         }
@@ -63,14 +90,13 @@ fun NordpoolApp() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // === UI State ===
     var prices by remember { mutableStateOf<List<PriceEntry>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var showUpdateDialog by remember { mutableStateOf(false) }
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var showAbout by remember { mutableStateOf(false) }
 
-    // === ✅ Non-blocking update check ===
+    // ✅ Check for updates (non-blocking)
     LaunchedEffect(Unit) {
         scope.launch(Dispatchers.IO) {
             try {
@@ -89,7 +115,7 @@ fun NordpoolApp() {
         }
     }
 
-    // === ✅ Data loading (kept from your working version) ===
+    // ✅ Load hourly prices
     LaunchedEffect(Unit) {
         try {
             Log.d("NordpoolApp", "⏳ Fetching hourly prices...")
@@ -108,7 +134,6 @@ fun NordpoolApp() {
         }
     }
 
-    // === Update dialog ===
     if (showUpdateDialog && updateInfo != null) {
         UpdateDialog(
             version = updateInfo!!.latestVersion,
@@ -134,13 +159,11 @@ fun NordpoolApp() {
         DownloadProgressDialog(progress = downloadProgress)
     }
 
-    // === About screen ===
     if (showAbout) {
         AboutScreen(onBack = { showAbout = false })
         return
     }
 
-    // === Main UI ===
     Scaffold(
         topBar = {
             TopAppBar(
@@ -238,7 +261,6 @@ fun parseFlexibleDate(raw: String): Date? {
         "yyyy-MM-dd HH:mm:ss",
         "yyyy-MM-dd HH:mm"
     )
-
     for (pattern in patterns) {
         try {
             val sdf = SimpleDateFormat(pattern, Locale.getDefault()).apply {

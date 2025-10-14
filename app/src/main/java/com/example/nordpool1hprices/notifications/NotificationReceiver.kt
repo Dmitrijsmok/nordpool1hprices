@@ -6,12 +6,12 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.example.nordpool1hprices.MainActivity
 import com.example.nordpool1hprices.R
-import com.example.nordpool1hprices.notifications.NotificationScheduler
 
 class NotificationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
@@ -20,7 +20,6 @@ class NotificationReceiver : BroadcastReceiver() {
 
         val channelId = "price_alert_channel"
 
-        // === Create channel (Android 8+) ===
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
@@ -33,7 +32,6 @@ class NotificationReceiver : BroadcastReceiver() {
             manager.createNotificationChannel(channel)
         }
 
-        // === Intent when user taps notification ===
         val openIntent = Intent(context, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
             context,
@@ -42,7 +40,6 @@ class NotificationReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // === Build notification ===
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_bell_filled)
             .setContentTitle("Electricity price alert")
@@ -51,9 +48,14 @@ class NotificationReceiver : BroadcastReceiver() {
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
 
-        // === Show it ===
-        with(NotificationManagerCompat.from(context)) {
-            notify(System.currentTimeMillis().toInt(), builder.build())
+        // ✅ Android 13+ permission check before showing
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            with(NotificationManagerCompat.from(context)) {
+                notify(System.currentTimeMillis().toInt(), builder.build())
+            }
         }
     }
 }
