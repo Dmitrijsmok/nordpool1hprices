@@ -4,14 +4,17 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import android.widget.Toast
 
 class MyDownloadReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         Log.d("MyDownloadReceiver", "📦 Download complete broadcast received.")
 
-        // ✅ Simply trigger ApkDownloader again — it will find & install automatically
-        val activity = context as? android.app.Activity ?: return
-        ApkDownloader.checkAndDownloadUpdate(activity,
-            "https://gitlab.com/dmitrijsmok1/nordpool1hprices-updates/-/raw/main/nordPool1hPrices-v1.8.1.apk")
+        // 🔸 Just notify user — don’t try to start installer from background
+        Toast.makeText(
+            context,
+            "Update downloaded — please open the app to install.",
+            Toast.LENGTH_LONG
+        ).show()
     }
 }

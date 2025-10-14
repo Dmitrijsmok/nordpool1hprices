@@ -15,8 +15,8 @@ android {
         applicationId = "com.example.nordpool1hprices"
         minSdk = 24
         targetSdk = 34
-        versionCode = 6
-        versionName = "1.8.2"
+        versionCode = 7
+        versionName = "1.8.3"
     }
 
     // Build commands:

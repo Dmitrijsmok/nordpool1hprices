@@ -27,15 +27,12 @@ import com.example.nordpool1hprices.model.PriceEntry
 import com.example.nordpool1hprices.network.PriceRepository
 import com.example.nordpool1hprices.network.UpdateInfo
 import com.example.nordpool1hprices.network.UpdateRepository
-import com.example.nordpool1hprices.ui.AboutScreen
-import com.example.nordpool1hprices.ui.DownloadProgressDialog
-import com.example.nordpool1hprices.ui.PriceChart
-import com.example.nordpool1hprices.ui.PriceList
-import com.example.nordpool1hprices.ui.UpdateDialog
+import com.example.nordpool1hprices.ui.*
 import com.example.nordpool1hprices.utils.ApkDownloader
 import com.example.nordpool1hprices.utils.ApkDownloader.downloadProgress
 import com.example.nordpool1hprices.utils.ApkDownloader.isDownloading
 import com.example.nordpool1hprices.BuildConfig
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -66,24 +63,52 @@ fun NordpoolApp() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // === State ===
+    // === UI State ===
     var prices by remember { mutableStateOf<List<PriceEntry>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var showUpdateDialog by remember { mutableStateOf(false) }
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var showAbout by remember { mutableStateOf(false) }
 
-    // === Remote update check ===
+    // === ✅ Non-blocking update check ===
     LaunchedEffect(Unit) {
-        val remoteUrl =
-            "https://gitlab.com/dmitrijsmok1/nordpool1hprices-updates/-/raw/main/update.json"
-        val info = UpdateRepository.checkForUpdate(remoteUrl)
-        if (info != null && info.latestVersion != currentVersion) {
-            updateInfo = info
-            showUpdateDialog = true
+        scope.launch(Dispatchers.IO) {
+            try {
+                val remoteUrl =
+                    "https://gitlab.com/dmitrijsmok1/nordpool1hprices-updates/-/raw/main/update.json"
+                val info = UpdateRepository.checkForUpdate(remoteUrl)
+                if (info != null && info.latestVersion != currentVersion) {
+                    updateInfo = info
+                    showUpdateDialog = true
+                } else {
+                    Log.d("UpdateCheck", "✅ App is up to date.")
+                }
+            } catch (e: Exception) {
+                Log.e("UpdateCheck", "⚠️ Failed to check update: ${e.message}")
+            }
         }
     }
 
+    // === ✅ Data loading (kept from your working version) ===
+    LaunchedEffect(Unit) {
+        try {
+            Log.d("NordpoolApp", "⏳ Fetching hourly prices...")
+            prices = PriceRepository.getHourlyPrices()
+            Log.d("NordpoolApp", "✅ Received ${prices.size} entries")
+
+            if (prices.isEmpty()) {
+                Toast.makeText(context, "No data from API!", Toast.LENGTH_LONG).show()
+            }
+        } catch (e: Exception) {
+            Log.e("NordpoolApp", "❌ Failed to fetch prices", e)
+            Toast.makeText(context, "Error fetching prices: ${e.message}", Toast.LENGTH_LONG).show()
+        } finally {
+            loading = false
+            Log.d("NordpoolApp", "🧩 Loading set to false")
+        }
+    }
+
+    // === Update dialog ===
     if (showUpdateDialog && updateInfo != null) {
         UpdateDialog(
             version = updateInfo!!.latestVersion,
@@ -105,10 +130,9 @@ fun NordpoolApp() {
         )
     }
 
-    if (ApkDownloader.isDownloading) {
-        DownloadProgressDialog(progress = ApkDownloader.downloadProgress)
+    if (isDownloading) {
+        DownloadProgressDialog(progress = downloadProgress)
     }
-
 
     // === About screen ===
     if (showAbout) {
@@ -173,8 +197,10 @@ fun NordpoolApp() {
             val nowUtc = Calendar.getInstance(TimeZone.getTimeZone("UTC")).time
             val futurePrices = prices.filter { entry ->
                 val startDate = parseFlexibleDate(entry.start)
-                startDate?.after(nowUtc) == true
+                startDate != null && !startDate.before(nowUtc)
             }.sortedBy { parseFlexibleDate(it.start) }
+
+            Log.d("NordpoolApp", "🧩 Displaying ${futurePrices.size} entries")
 
             Box(
                 modifier = Modifier
@@ -186,16 +212,11 @@ fun NordpoolApp() {
                         .fillMaxSize()
                         .padding(horizontal = 8.dp)
                 ) {
-                    // === Chart ===
                     PriceChart(futurePrices)
-
                     Spacer(modifier = Modifier.height(16.dp))
-
-                    // === Price list (always 1h resolution) ===
                     PriceList(futurePrices)
                 }
 
-                // === Version label (optional)
                 Text(
                     text = "v$currentVersion",
                     color = Color.Gray.copy(alpha = 0.8f),
