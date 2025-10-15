@@ -1,7 +1,8 @@
 package com.example.nordpool1hprices.ui
 
 import android.Manifest
-import android.app.Activity
+import android.app.AlarmManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -24,8 +25,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.nordpool1hprices.R
 import com.example.nordpool1hprices.model.PriceEntry
+import com.example.nordpool1hprices.notifications.NotificationScheduler.cancelNotification
+import com.example.nordpool1hprices.notifications.NotificationScheduler.scheduleNotification
 import java.text.SimpleDateFormat
 import java.util.*
+import android.util.Log
+
+private const val MINIMUM_DELAY_MILLIS = 5_000 // 5 seconds
 
 @Composable
 fun PriceList(prices: List<PriceEntry>) {
@@ -130,6 +136,7 @@ fun PriceList(prices: List<PriceEntry>) {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                     items(validEntries) { entry ->
                         var notify by remember(entry) { mutableStateOf(entry.notify) }
+                        var reminderTime by remember { mutableStateOf(10) } // Default reminder time: 10 minutes
 
                         val startDate = runCatching { sdf.parse(entry.start) }.getOrNull()
                         val endDate = runCatching { sdf.parse(entry.end) }.getOrNull()
@@ -174,44 +181,7 @@ fun PriceList(prices: List<PriceEntry>) {
                                     onClick = {
                                         notify = !notify
                                         entry.notify = notify
-
-                                        // ✅ Android 13+ POST_NOTIFICATIONS permission check
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                            val hasPermission =
-                                                context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
-                                                        PackageManager.PERMISSION_GRANTED
-
-                                            if (!hasPermission) {
-                                                Toast.makeText(
-                                                    context,
-                                                    "Please enable notifications in Android settings.",
-                                                    Toast.LENGTH_LONG
-                                                ).show()
-                                                // 🔕 Do NOT redirect user — just stop here
-                                                return@IconButton
-                                            }
-                                        }
-
-                                        // ✅ Schedule or cancel notification
-                                        val triggerTimeMillis = (startDate.time - 10 * 60 * 1000)
-                                            .coerceAtLeast(System.currentTimeMillis() + 5_000)
-                                        val priceText = String.format("%.3f", entry.price)
-
-                                        if (notify) {
-                                            com.example.nordpool1hprices.notifications.NotificationScheduler.scheduleNotification(
-                                                context,
-                                                triggerTimeMillis,
-                                                timeRange,
-                                                priceText
-                                            )
-                                            Toast.makeText(context, "Notification set for $timeRange", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            com.example.nordpool1hprices.notifications.NotificationScheduler.cancelNotification(
-                                                context,
-                                                triggerTimeMillis
-                                            )
-                                            Toast.makeText(context, "Notification cancelled", Toast.LENGTH_SHORT).show()
-                                        }
+                                        handleNotification(context, notify, entry, startDate, timeRange, reminderTime)
                                     },
                                     modifier = Modifier.size(36.dp)
                                 ) {
@@ -225,6 +195,24 @@ fun PriceList(prices: List<PriceEntry>) {
                                     )
                                 }
 
+// Reminder Time Picker
+                                DropdownMenu(
+                                    expanded = notify,
+                                    onDismissRequest = { notify = false }
+                                ) {
+                                    listOf(5, 10, 15, 30).forEach { time ->
+                                        DropdownMenuItem(
+                                            text = { Text("$time minutes before") },
+                                            onClick = {
+                                                reminderTime = time
+                                                notify = true // Keep the bell filled
+                                                entry.notify = true
+                                                handleNotification(context, notify, entry, startDate, timeRange, reminderTime)
+                                                notify = false // Close the dropdown menu
+                                            }
+                                        )
+                                    }
+                                }
 
                                 // 💰 Price
                                 Row(
@@ -250,5 +238,56 @@ fun PriceList(prices: List<PriceEntry>) {
                 }
             }
         }
+    }
+}
+
+private fun handleNotification(
+    context: Context,
+    notify: Boolean,
+    entry: PriceEntry,
+    startDate: Date,
+    timeRange: String,
+    reminderTime: Int
+) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val hasPermission = context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED
+
+        if (!hasPermission) {
+            Toast.makeText(
+                context,
+                "Please enable notifications in Android settings.",
+                Toast.LENGTH_LONG
+            ).show()
+
+            // Open the app's Notification Settings
+            val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            }
+            context.startActivity(intent)
+            return
+        }
+    }
+
+    val triggerTimeMillis = (startDate.time - reminderTime * 60 * 1000)
+        .coerceAtLeast(System.currentTimeMillis() + MINIMUM_DELAY_MILLIS)
+    val priceText = String.format("%.3f", entry.price)
+
+    if (notify) {
+        Log.d("Notification", "Scheduling notification for $timeRange at $triggerTimeMillis")
+        scheduleNotification(
+            context,
+            triggerTimeMillis,
+            timeRange,
+            priceText
+        )
+        Toast.makeText(context, "Notification set for $timeRange", Toast.LENGTH_SHORT).show()
+    } else {
+        Log.d("Notification", "Canceling notification for $timeRange at $triggerTimeMillis")
+        cancelNotification(
+            context,
+            triggerTimeMillis
+        )
+        Toast.makeText(context, "Notification cancelled", Toast.LENGTH_SHORT).show()
     }
 }
