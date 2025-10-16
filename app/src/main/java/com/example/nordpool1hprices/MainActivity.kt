@@ -34,6 +34,7 @@ import com.example.nordpool1hprices.utils.ApkDownloader
 import com.example.nordpool1hprices.utils.ApkDownloader.downloadProgress
 import com.example.nordpool1hprices.utils.ApkDownloader.isDownloading
 import com.example.nordpool1hprices.BuildConfig
+import com.example.nordpool1hprices.utils.NotificationPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -65,17 +66,7 @@ class MainActivity : ComponentActivity() {
             manager.createNotificationChannel(channel)
         }
 
-        // ✅ Optionally trigger one short "registration" notification
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val builder = android.app.Notification.Builder(this, "nordpool_channel")
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentTitle("Nord Pool notifications ready")
-                .setContentText("Tap to manage notification settings")
-                .setAutoCancel(true)
-
-            val nm = getSystemService(NotificationManager::class.java)
-            nm.notify(9999, builder.build())
-        }
+        // Startup notification removed to avoid user disruption
 
         setContent {
             NordpoolApp()
@@ -88,7 +79,7 @@ class MainActivity : ComponentActivity() {
 fun NordpoolApp() {
     val currentVersion = BuildConfig.VERSION_NAME
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
+    // val scope = rememberCoroutineScope() // not needed for update check anymore
 
     var prices by remember { mutableStateOf<List<PriceEntry>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
@@ -96,22 +87,29 @@ fun NordpoolApp() {
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var showAbout by remember { mutableStateOf(false) }
 
-    // ✅ Check for updates (non-blocking)
+    // ✅ Prune expired persisted bell states on start
     LaunchedEffect(Unit) {
-        scope.launch(Dispatchers.IO) {
-            try {
-                val remoteUrl =
-                    "https://gitlab.com/dmitrijsmok1/nordpool1hprices-updates/-/raw/main/update.json"
-                val info = UpdateRepository.checkForUpdate(remoteUrl)
-                if (info != null && info.latestVersion != currentVersion) {
-                    updateInfo = info
-                    showUpdateDialog = true
-                } else {
-                    Log.d("UpdateCheck", "✅ App is up to date.")
-                }
-            } catch (e: Exception) {
-                Log.e("UpdateCheck", "⚠️ Failed to check update: ${e.message}")
+        try {
+            kotlinx.coroutines.withContext(Dispatchers.IO) {
+                NotificationPreferences.prune(context)
             }
+        } catch (_: Exception) { }
+    }
+
+    // ✅ Check for updates (suspend on IO inside repository, update state on main)
+    LaunchedEffect(Unit) {
+        try {
+            val remoteUrl =
+                "https://gitlab.com/dmitrijsmok1/nordpool1hprices-updates/-/raw/main/update.json"
+            val info = UpdateRepository.checkForUpdate(remoteUrl)
+            if (info != null && info.latestVersion != currentVersion) {
+                updateInfo = info
+                showUpdateDialog = true
+            } else {
+                Log.d("UpdateCheck", "✅ App is up to date.")
+            }
+        } catch (e: Exception) {
+            Log.e("UpdateCheck", "⚠️ Failed to check update: ${e.message}")
         }
     }
 

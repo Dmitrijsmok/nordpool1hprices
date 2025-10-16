@@ -15,7 +15,7 @@ class NotificationReceiver : BroadcastReceiver() {
         val hour = intent?.getStringExtra("hour") ?: "Unknown hour"
         val price = intent?.getStringExtra("price") ?: "?"
 
-        val channelId = "price_alert_channel"
+        val channelId = "nordpool_channel"
         val notificationManager = NotificationManagerCompat.from(context)
 
         // Create the notification channel (required for API 26+)

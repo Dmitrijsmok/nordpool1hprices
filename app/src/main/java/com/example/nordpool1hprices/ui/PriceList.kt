@@ -1,7 +1,6 @@
 package com.example.nordpool1hprices.ui
 
 import android.Manifest
-import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -27,6 +26,8 @@ import com.example.nordpool1hprices.R
 import com.example.nordpool1hprices.model.PriceEntry
 import com.example.nordpool1hprices.notifications.NotificationScheduler.cancelNotification
 import com.example.nordpool1hprices.notifications.NotificationScheduler.scheduleNotification
+import com.example.nordpool1hprices.utils.NotificationPreferences
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 import android.util.Log
@@ -36,6 +37,8 @@ private const val MINIMUM_DELAY_MILLIS = 5_000 // 5 seconds
 @Composable
 fun PriceList(prices: List<PriceEntry>) {
     val latviaTZ = TimeZone.getTimeZone("Europe/Riga")
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).apply {
         timeZone = latviaTZ
@@ -133,15 +136,21 @@ fun PriceList(prices: List<PriceEntry>) {
                     }
                     .sortedBy { sdf.parse(it.start) }
 
+                // Persisted active notifications (epoch millis of start time)
+                val activeNotifs by NotificationPreferences.observe(context).collectAsState(initial = emptySet())
+
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                     items(validEntries) { entry ->
-                        var notify by remember(entry) { mutableStateOf(entry.notify) }
-                        var reminderTime by remember { mutableStateOf(10) } // Default reminder time: 10 minutes
+                        // Separate UI-only state: dropdown open
+                        var isMenuOpen by remember(entry) { mutableStateOf(false) }
+                        var reminderTime by remember(entry) { mutableStateOf(10) } // Default reminder time: 10 minutes
 
                         val startDate = runCatching { sdf.parse(entry.start) }.getOrNull()
                         val endDate = runCatching { sdf.parse(entry.end) }.getOrNull()
 
                         if (startDate != null && endDate != null) {
+                            val startMillis = startDate.time
+                            val isNotified = activeNotifs.contains(startMillis)
                             val calStart = Calendar.getInstance(latviaTZ).apply { time = startDate }
 
                             val isNow =
@@ -179,36 +188,43 @@ fun PriceList(prices: List<PriceEntry>) {
                                 // 🔔 Notification button
                                 IconButton(
                                     onClick = {
-                                        notify = !notify
-                                        entry.notify = notify
-                                        handleNotification(context, notify, entry, startDate, timeRange, reminderTime)
+                                        if (isNotified) {
+                                            // Turn off notifications
+                                            entry.notify = false
+                                            handleNotification(context, false, entry, startDate, timeRange, reminderTime)
+                                            scope.launch { NotificationPreferences.remove(context, startMillis) }
+                                        } else {
+                                            // Open reminder time picker
+                                            isMenuOpen = true
+                                        }
                                     },
                                     modifier = Modifier.size(36.dp)
                                 ) {
                                     Icon(
                                         painter = painterResource(
-                                            id = if (notify) R.drawable.ic_bell_filled else R.drawable.ic_bell_outline
+                                            id = if (isNotified) R.drawable.ic_bell_filled else R.drawable.ic_bell_outline
                                         ),
                                         contentDescription = "Notification",
-                                        tint = if (notify) Color(0xFFFFA000) else Color.Gray,
+                                        tint = if (isNotified) Color(0xFFFFA000) else Color.Gray,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
 
-// Reminder Time Picker
+                                // Reminder Time Picker (decoupled from bell state)
                                 DropdownMenu(
-                                    expanded = notify,
-                                    onDismissRequest = { notify = false }
+                                    expanded = isMenuOpen,
+                                    onDismissRequest = { isMenuOpen = false }
                                 ) {
                                     listOf(5, 10, 15, 30).forEach { time ->
                                         DropdownMenuItem(
                                             text = { Text("$time minutes before") },
                                             onClick = {
                                                 reminderTime = time
-                                                notify = true // Keep the bell filled
+                                                // Enable notifications and schedule
                                                 entry.notify = true
-                                                handleNotification(context, notify, entry, startDate, timeRange, reminderTime)
-                                                notify = false // Close the dropdown menu
+                                                handleNotification(context, true, entry, startDate, timeRange, reminderTime)
+                                                scope.launch { NotificationPreferences.add(context, startMillis) }
+                                                isMenuOpen = false
                                             }
                                         )
                                     }
@@ -283,10 +299,11 @@ private fun handleNotification(
         )
         Toast.makeText(context, "Notification set for $timeRange", Toast.LENGTH_SHORT).show()
     } else {
-        Log.d("Notification", "Canceling notification for $timeRange at $triggerTimeMillis")
+        Log.d("Notification", "Canceling notification for $timeRange")
         cancelNotification(
             context,
-            triggerTimeMillis
+            timeRange,
+            priceText
         )
         Toast.makeText(context, "Notification cancelled", Toast.LENGTH_SHORT).show()
     }
