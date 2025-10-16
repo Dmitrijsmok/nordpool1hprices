@@ -6,28 +6,12 @@ import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import android.util.Log
-import android.os.Build
-import android.provider.Settings
 import com.example.nordpool1hprices.utils.checkAndRequestExactAlarmPermission
 
 object NotificationScheduler {
 
-    private fun checkAndRequestExactAlarmPermission(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            if (!alarmManager.canScheduleExactAlarms()) {
-                Toast.makeText(
-                    context,
-                    "Please enable exact alarms in system settings.",
-                    Toast.LENGTH_LONG
-                ).show()
-
-                // Open the Alarms and Reminders settings
-                val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
-                context.startActivity(intent)
-            }
-        }
-    }
+    private fun makeRequestCode(hourText: String, price: String): Int =
+        ("$hourText|$price").hashCode()
 
     fun scheduleNotification(context: Context, triggerTimeMillis: Long, hourText: String, price: String) {
         checkAndRequestExactAlarmPermission(context)
@@ -40,7 +24,7 @@ object NotificationScheduler {
 
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
-                triggerTimeMillis.toInt(),
+                makeRequestCode(hourText, price),
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
@@ -58,12 +42,12 @@ object NotificationScheduler {
         }
     }
 
-    fun cancelNotification(context: Context, triggerTimeMillis: Long) {
+    fun cancelNotification(context: Context, hourText: String, price: String) {
         try {
             val intent = Intent(context, NotificationReceiver::class.java)
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
-                triggerTimeMillis.toInt(),
+                makeRequestCode(hourText, price),
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
@@ -71,7 +55,7 @@ object NotificationScheduler {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             alarmManager.cancel(pendingIntent)
 
-            Log.d("NotificationScheduler", "Notification canceled for $triggerTimeMillis")
+            Log.d("NotificationScheduler", "Notification canceled for $hourText")
         } catch (e: Exception) {
             Log.e("NotificationScheduler", "Error canceling notification: ${e.message}")
             Toast.makeText(
