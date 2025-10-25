@@ -1,5 +1,5 @@
 
-# Nord Pool — Hourly Prices
+# Nord Pool — Hourly Prices (Latvia, Estonia, Lithuania)
 
 A simple app to view and monitor Nord Pool electricity prices. Use it to spot cheap hours, set price alerts, and glance at price trends for today and tomorrow.
 
